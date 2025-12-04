@@ -1,3 +1,5 @@
+#data.py
+
 TRIAGE_SPEC = "If (O₂ saturation < 92 OR systolic BP < 90 OR HR > 130):\n    → severity = critical\nElse If (O₂ < 95 OR Temp > 101°F OR RR > 24):\n    → severity = moderate\nElse:\n    → severity = mild\n\nIf (≥2 chronic conditions OR age ≥ 70):\n    → risk = high\nElse:\n    → risk = standard\n\nIf (severity = critical):\n    → recommend ER referral\nElse If (severity = moderate AND risk = high):\n    → recommend urgent clinical evaluation\nElse If (severity = moderate AND risk = standard):\n    → recommend outpatient evaluation\nElse:\n    → recommend home care"
 
 HEALTHCARE_EXAMPLES = [
