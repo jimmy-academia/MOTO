@@ -1,9 +1,16 @@
+import os
+from lwt import LLMClient, get_key
+
+os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
+os.environ["OPENAI_API_KEY"] = get_key()
+os.environ["TRACE_LITELLM_MODEL"] = "gpt-5-mini"  # optimizer LLM
+os.environ["LITELLM_LOG"] = "INFO"
+
 from opto.trace import bundle, node, GRAPH
 from opto.optimizers import OptoPrime
 
 from tqdm import tqdm 
 
-from lwt import LLMClient
 # HEALTHCARE_EXAMPLES
 # from anot import TRIAGE_SPEC
 
