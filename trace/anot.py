@@ -2,7 +2,10 @@
 
 import os
 import json
-from lwt import get_key, LWTExecutor, LLMClient, HEALTHCARE_EXAMPLES
+from lwt import get_key, LWTExecutor, LLMClient
+# HEALTHCARE_EXAMPLES
+
+from data import HEALTHCARE_EXAMPLES, TRIAGE_SPEC
 
 os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
 os.environ["OPENAI_API_KEY"] = get_key()
@@ -13,6 +16,8 @@ from opto.trace import bundle
 from opto.optimizers import OptoPrime
 from opto import trace
 
+from tqdm import tqdm
+
 # -------------------------------------------------------------------
 # 0. Shared executor (uses gpt-5-nano for actual workflow execution)
 # -------------------------------------------------------------------
@@ -22,13 +27,13 @@ EXECUTOR = LWTExecutor(llm_client)
 # -------------------------------------------------------------------
 # 1. Triage spec in natural language
 # -------------------------------------------------------------------
-TRIAGE_SPEC = """
-Home care: normal oxygen (SpO₂ ≥ 95%), mild symptoms only, fever < 38°C, age < 70, no major comorbidities acting up, no red-flag symptoms.
+# TRIAGE_SPEC = """
+# Home care: normal oxygen (SpO₂ ≥ 95%), mild symptoms only, fever < 38°C, age < 70, no major comorbidities acting up, no red-flag symptoms.
 
-Urgent clinical evaluation: borderline oxygen (SpO₂ 93–94%), moderate fever 38–39.9°C, age ≥ 70 with new weakness or shortness of breath, or relevant comorbidities with worsening symptoms, as long as no ER criteria are present.
+# Urgent clinical evaluation: borderline oxygen (SpO₂ 93–94%), moderate fever 38–39.9°C, age ≥ 70 with new weakness or shortness of breath, or relevant comorbidities with worsening symptoms, as long as no ER criteria are present.
 
-ER referral: low oxygen (SpO₂ ≤ 92%), very high fever ≥ 40°C, or any severe symptoms such as marked breathlessness, confusion, chest pain, or signs of shock.
-""".strip()
+# ER referral: low oxygen (SpO₂ ≤ 92%), very high fever ≥ 40°C, or any severe symptoms such as marked breathlessness, confusion, chest pain, or signs of shock.
+# """.strip()
 
 LWT_META_SPEC = """
 You are editing an LWT script.
@@ -101,7 +106,7 @@ def train_lwt(epochs: int = 3):
         feedbacks = []  # strings
         total = num_correct = 0
 
-        for ex in HEALTHCARE_EXAMPLES:
+        for ex in tqdm(HEALTHCARE_EXAMPLES, ncols=88):
             x = ex["query"]
             y = ex["label"]
 
@@ -137,7 +142,8 @@ def train_lwt(epochs: int = 3):
 
         optimizer.zero_feedback()
         optimizer.backward(batched_outputs, batched_feedback.data)
-        optimizer.step(verbose=True)
+        # optimizer.step(verbose=True)
+        optimizer.step()
 
         updated_script_node = triage_script()
         print("Updated script:\n", updated_script_node.data)
