@@ -1,9 +1,37 @@
 from opto.trace import bundle, node, GRAPH
 from opto.optimizers import OptoPrime
 
-from lwt import get_key, LLMClient, HEALTHCARE_EXAMPLES
+from tqdm import tqdm 
 
-from anot import TRIAGE_SPEC
+from lwt import LLMClient
+# HEALTHCARE_EXAMPLES
+# from anot import TRIAGE_SPEC
+
+TRIAGE_SPEC = "If (O₂ saturation < 92 OR systolic BP < 90 OR HR > 130):\n    → severity = critical\nElse If (O₂ < 95 OR Temp > 101°F OR RR > 24):\n    → severity = moderate\nElse:\n    → severity = mild\n\nIf (≥2 chronic conditions OR age ≥ 70):\n    → risk = high\nElse:\n    → risk = standard\n\nIf (severity = critical):\n    → recommend ER referral\nElse If (severity = moderate AND risk = high):\n    → recommend urgent clinical evaluation\nElse If (severity = moderate AND risk = standard):\n    → recommend outpatient evaluation\nElse:\n    → recommend home care"
+
+HEALTHCARE_EXAMPLES = [
+    {
+        "query": "A 51-year-old patient presents with loss of smell for 1 days, chest pain for 7 days, headache for 7 days. Oxygen saturation is 90%, and body temperature is 102.0°F. Medical history includes HIV. Recent travel to outbreak area.",
+        "label": "ER referral"
+    },
+    {
+        "query":"A 89-year-old patient presents with headache for 8 days, rash for 6 days, chest pain for 4 days, dry cough for 8 days, shortness of breath for 3 days. Oxygen saturation is 94%, and body temperature is 98.6°F. Medical history includes chronic kidney disease. Recent travel abroad.",
+        "label":"Urgent clinical evaluation"
+    },
+    {
+        "query":"A 16-year-old patient presents with fever for 8 days, shortness of breath for 4 days. Oxygen saturation is 90%, and body temperature is 103.0°F. Medical history includes CHF, hypertension. Recent travel abroad.",
+        "label":"ER referral"
+    },
+    {
+        "query":"A 37-year-old patient presents with loss of smell for 7 days, fever for 9 days. Oxygen saturation is 97%, and body temperature is 99.5°F. Medical history includes none. Recent travel abroad.",
+        "label":"Home care"
+    },
+    {
+        "query":"A 59-year-old patient presents with chest pain for 10 days, nausea for 7 days, fatigue for 4 days. Oxygen saturation is 97%, and body temperature is 99.5°F. Medical history includes diabetes, hypertension. Recent travel abroad.",
+        "label":"Home care"
+    },
+]
+
 
 INPROMPT = True
 # INPROMPT = False
@@ -30,15 +58,19 @@ def run_triage(prompt_text: str, query: str) -> str:
     """
     One LLM call: combine the trainable prompt with the user query.
     """
-    triage_spec = "=== TRIAGE SPEC ===\n" + f"{TRIAGE_SPEC}\n" if INPROMPT else ""
+    triage_spec_block = (
+        "=== TRIAGE SPEC ===\n" + TRIAGE_SPEC + "\n\n"
+        if INPROMPT
+        else ""
+    )
     full_prompt = (
         f"{prompt_text}\n\n"
-        triage_spec
+        f"{triage_spec_block}"
         "=== PATIENT CASE ===\n"
         f"{query}\n\n"
         "Triage label:"
     )
-    return EXECUTOR.llm_answer(full_prompt)
+    return EXECUTOR.answer(full_prompt)
 
 # ---------------------------------------------------------------------
 # 3. Feedback construction
@@ -66,12 +98,13 @@ def train(epochs: int = 3):
 
         total = correct = 0
         ## measure accuracy
-        for i, ex in enumerate(HEALTHCARE_EXAMPLES):
+        pbar = tqdm(HEALTHCARE_EXAMPLES, ncols=88)
+        for i, ex in enumerate(pbar):
             x = ex["query"]
             y = ex["label"]
 
             # IMPORTANT: clear graph each iteration
-            GRAPH.clear()?????
+            GRAPH.clear()
 
             # Forward: one triage call, using trainable_prompt
             output_node = run_triage(trainable_prompt, x)
@@ -88,15 +121,17 @@ def train(epochs: int = 3):
             optimizer.backward(output_node, feedback)
             optimizer.step()
 
-        acc = correct / total if total > 0 else 0.0
-        print(f"\nAccuracy after epoch {epoch}: {correct}/{total} = {acc:.3f}")
+            acc = correct / total if total > 0 else 0.0
+            pbar.set_postfix(acc=acc)
+        # print(f"\nAccuracy after epoch {epoch}: {correct}/{total} = {acc:.3f}")
 
         # Show current prompt at end of epoch
         print("\nCurrent prompt after epoch", epoch)
         print("-" * 80)
         print(trainable_prompt.data)
         print("-" * 80)
-
+        if acc == 1:
+            break
 
 if __name__ == "__main__":
-    train(epochs=3, variant)
+    train(epochs=3)
