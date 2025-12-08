@@ -35,7 +35,7 @@ def extract_boxed_answer(solution: str) -> str:
 
 
 # load the AFLOW-style validation file
-val_math_raw = loadj(root_dir / "math_validate.jsonl")
+val_math_raw = loadjl(root_dir / "math_validate.jsonl")
 
 # build MATH_EXAMPLES in the format your trainer expects
 MATH_EXAMPLES = [
