@@ -91,7 +91,7 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
 
 def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
     optimizer = OptoPrime(math_script.parameters())
-    MATH_EXAMPLES = MATH_EXAMPLES[:33]
+    MATH_EXAMPLES = MATH_EXAMPLES[:5]
     n = len(MATH_EXAMPLES)
     
     for epoch in range(epochs):
