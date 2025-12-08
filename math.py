@@ -1,5 +1,6 @@
 import os
 from llm import get_key, LLMClient
+from utils import writef
 
 os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
 os.environ["OPENAI_API_KEY"] = get_key()
@@ -77,8 +78,6 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
         )
 
 
-from tqdm import tqdm
-
 def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
     optimizer = OptoPrime(math_script.parameters())
     MATH_EXAMPLES = MATH_EXAMPLES[:33]
@@ -148,15 +147,13 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
             print("All training examples solved.")
             break
 
+    ffinal_src = math_script.data
+    writef("math_solver.py", final_src)
+    print("Saved optimized solver to math_solver.py")
     # After training, math_script is the optimized solver
     return math_script
 
 
 if __name__ == "__main__":
-    # from data_math import MATH_EXAMPLES
     trained_solver = train_math(MATH_EXAMPLES)
 
-if __name__ == "__main__":
-    # import or construct MATH_EXAMPLES before calling this
-    # from data_math import MATH_EXAMPLES
-    trained_solver = train_math(MATH_EXAMPLES)

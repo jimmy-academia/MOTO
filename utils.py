@@ -16,7 +16,7 @@ def readf(path):
     with open(path, 'r') as f:
         return f.read()
 
-def writef(path, content):
+def writef(path, content, encoding="utf-8"):
     with open(path, 'w') as f:
         f.write(content)
 
