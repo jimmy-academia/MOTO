@@ -23,7 +23,7 @@ args = parser.parse_args()
 if args.m == 5:
     model = "gpt-5-nano"
 elif args.m == 4:
-    model = 'gpt-4-mini'
+    model = 'gpt-4o-mini'
 
 print(f'executing with {model}')
 llm_client = LLMClient(model=model)
@@ -89,7 +89,7 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
         )
 
 
-def train_math(MATH_EXAMPLES, args, epochs: int = 5, batch_size: int = 5):
+def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
     optimizer = OptoPrime(math_script.parameters())
     MATH_EXAMPLES = MATH_EXAMPLES[:33]
     n = len(MATH_EXAMPLES)
