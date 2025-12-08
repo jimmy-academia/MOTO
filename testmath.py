@@ -1,6 +1,7 @@
 import os
 from llm import get_key, LLMClient
 from utils import writef
+import argparse
 
 os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
 os.environ["OPENAI_API_KEY"] = get_key()
@@ -16,13 +17,15 @@ from tqdm import tqdm
 from data import MATH_EXAMPLES
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-m", type=str, default="5", help="Which model to use for llm() execution.",)
+parser.add_argument("-m", type=int, default=4, help="Which model to use for llm() execution.",)
 args = parser.parse_args()
 
-if args.m == '5':
+if args.m == 5:
     model = "gpt-5-nano"
-elif args.m == '4':
+elif args.m == 4:
     model = 'gpt-4-mini'
+
+print(f'executing with {model}')
 llm_client = LLMClient(model=model)
 
 
