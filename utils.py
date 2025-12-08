@@ -58,38 +58,6 @@ def loadp(filepath):
     with open(filepath, "rb") as f:
         return pickle.load(f)
 
-def load_or_build(path, build_fn, *args, save_fn=dumpj, load_fn=loadj, **kwargs):
-    path = Path(path)
-    if path.exists():
-        logging.info(f"[load_or_build] >>> {path} exists, loading...")
-        return load_fn(path)
-    else:
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-    logging.info(f"[load_or_build] >>> {path} does not exist, building...")
-    result = build_fn(*args, **kwargs)
-    logging.info(f"[load_or_build] >>> saving build result to {path}...")
-    save_fn(path, result)
-    logging.info("[load_or_build] >>> saving complete.")
-    return result
-
-# % --- ensures ---
-
-def _ensure_dir(_dir):
-    _dir = Path(_dir)
-    _dir.mkdir(exist_ok=True, parents=True)
-    return _dir
-
-def _ensure_pathref(pathref):
-    pathref = Path(pathref)
-    if pathref.is_file():
-        return readf(pathref).strip()
-    else:
-        logging.warning(f"[_ensure_pathref] Warning: {pathref} does not exists")
-        content = input(f'...enter desired content for {pathref}').strip()
-        writef(pathref, content)
-        logging.info(f"[_ensure_pathref] content saved to {pathref}")
-        return content
         
 # % --- logging & seed ---
 
@@ -102,39 +70,34 @@ def set_seeds(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
 
-def set_logging(verbose, log_dir, prefix='exp'):
-    # usages: logging.warning; logging.error, logging.info, logging.debug
+class Logger:
+    def __init__(self):
+        self.buffer = []
+        self.enabled = False
 
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    log_path = os.path.join(log_dir, f"{prefix}_{ts}.log")
+    def init(self):
+        """Start / reset logging."""
+        self.buffer = []
+        self.enabled = True
 
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    if verbose == 0:
-        level = logging.WARNING
-    elif verbose == 1:
-        level = logging.INFO
-    elif verbose == 2:
-        level = logging.DEBUG
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        datefmt='%H:%M:%S',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler(log_path, mode="w", encoding="utf-8"),
-        ],
-    )
-    logging.info(f"Logging initialized → {log_path}")
+    def __call__(self, *args, sep=" ", end="\n", file=None, flush=False):
+        """
+        Drop-in replacement for print:
+        - prints to stdout
+        - also appends to internal buffer if enabled
+        """
+        msg = sep.join(str(a) for a in args)
+        # print normally
+        print(msg, sep=sep, end=end, file=file, flush=flush)
+        # and store
+        if self.enabled:
+            self.buffer.append(msg + ("" if end == "" else end))
 
-# % --- iteration ---
+    def saveto(self, path: str):
+        """Save the collected log to a file at `path`."""
+        text = "".join(self.buffer)
+        # use your existing helper
+        writef(path, text)
 
-def _iter_line(filepath, total=None, desc=""):
-    if total is None:
-        with open(filepath, "r", encoding="utf-8") as f:
-            total = sum(1 for _ in f)
 
-    desc = f"[iter_line: {desc}]"
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in tqdm(f, total=total, ncols=90, desc=desc):
-            yield line
+
