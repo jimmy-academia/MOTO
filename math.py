@@ -140,7 +140,10 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
 
         epoch_acc = num_correct / total if total > 0 else 0.0
         print(f"Epoch {epoch} accuracy: {num_correct}/{total} = {epoch_acc:.3f}")
-
+        # 🔥 NEW: print the updated function
+        print("\nUpdated math_script source:\n")
+        print(math_script.data)
+        print("-" * 60)
         if total > 0 and num_correct == total:
             print("All training examples solved.")
             break
