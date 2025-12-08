@@ -147,7 +147,7 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
             print("All training examples solved.")
             break
 
-    ffinal_src = math_script.data
+    final_src = math_script.data
     writef("math_solver.py", final_src)
     print("Saved optimized solver to math_solver.py")
     # After training, math_script is the optimized solver
