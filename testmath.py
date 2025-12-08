@@ -15,7 +15,15 @@ from tqdm import tqdm
 
 from data import MATH_EXAMPLES
 
-llm_client = LLMClient(model="gpt-5-nano")
+parser = argparse.ArgumentParser()
+parser.add_argument("-m", type=str, default="5", help="Which model to use for llm() execution.",)
+args = parser.parse_args()
+
+if args.m == '5':
+    model = "gpt-5-nano"
+elif args.m == '4':
+    model = 'gpt-4-mini'
+llm_client = LLMClient(model=model)
 
 
 def llm(prompt: str) -> str:
@@ -78,12 +86,11 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
         )
 
 
-def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
+def train_math(MATH_EXAMPLES, args, epochs: int = 5, batch_size: int = 5):
     optimizer = OptoPrime(math_script.parameters())
     MATH_EXAMPLES = MATH_EXAMPLES[:33]
     n = len(MATH_EXAMPLES)
-
-
+    
     for epoch in range(epochs):
         print(f"\n=== Epoch {epoch} ===")
 
@@ -151,12 +158,13 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
             break
 
     final_src = math_script.parameters()[0].data
-    writef("math_solver.py", final_src)
+    writef(f"{model}_math_solver.py", final_src)
     print("Saved optimized solver to math_solver.py")
     # After training, math_script is the optimized solver
     return math_script
 
 
 if __name__ == "__main__":
+
     trained_solver = train_math(MATH_EXAMPLES)
 
