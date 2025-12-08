@@ -41,23 +41,52 @@ def math_script(problem: str):
     """
     Trainable Python solver for MATH.
 
-    Guidelines (for the editing LLM):
-    - Use `llm(...)` as the main reasoning engine; you may call it multiple times.
-    - Prefer intermediate variables named s1, s2, s3, ... to store stepwise reasoning.
-    - Build prompts using f-strings that include `problem` and earlier steps, e.g.:
-          s2 = llm(f"Given the problem: {problem} and the reasoning so far: {s1} ...")
-    - You may use loops, lists, and standard Python expressions to organize the workflow.
-    - At the end, return a STRING containing ONLY the final numeric answer.
+    GOAL
+    - Learn a solver that generalizes to unseen MATH problems.
+    - Do NOT overfit to this specific batch of training problems.
+
+    STRICTLY FORBIDDEN (for the editing LLM)
+    - Do NOT add code that hard-codes answers for particular phrasings, e.g.:
+          if "convex pentagon" in problem.lower():
+              return "135"
+    - Do NOT detect long, specific substrings (full sentences, weird decimals,
+      exact names) and map them directly to fixed answers.
+    - Do NOT build long chains of `if "...something very specific..." in problem`
+      each returning a constant.
+
+    ALLOWED / ENCOURAGED
+    - Use `llm(...)` as the main reasoning engine; multiple calls are fine.
+    - Use intermediate variables s1, s2, s3, ... to store stepwise reasoning.
+    - Build prompts with f-strings including `problem` and earlier steps.
+    - Ask the LLM to put the final answer on a clearly marked last line, then
+      parse that answer in Python.
+    - Any branching you add must correspond to reusable patterns (problem types),
+      not single memorized questions.
+
+    OUTPUT
+    - Return a STRING containing ONLY the final answer (no explanation).
     """
-    # Baseline: single-shot answer extraction.
     s1 = llm(
-        f"You are an expert competition mathematician.\n"
-        f"Problem: {problem}\n\n"
-        "Solve this problem carefully and respond with ONLY the final numeric answer."
+        f"""You are an expert competition mathematician.
+
+Problem: {problem}
+
+1. Think step by step and solve the problem.
+2. On the LAST line, write: ANSWER: <final answer only, numeric or simplified expression>"""
     )
+
+    # Extract final answer from the last line containing 'ANSWER:'
+    lines = s1.strip().splitlines()
+    for line in reversed(lines):
+        if "ANSWER:" in line:
+            ans = line.split("ANSWER:", 1)[1].strip()
+            if ans:
+                return ans
+
+    # Fallback: if the model ignored the format, just return trimmed output
     return s1.strip()
 
-
+    
 # -----------------------------------------------------------
 # 2. Utility for batching feedback
 # -----------------------------------------------------------
@@ -85,7 +114,6 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
             f"Got: {pred_str}\n"
             "Please improve the body of `math_script` so that it produces the correct "
             "numeric answer while following the inline comments. "
-            "Do NOT change the function name or its parameters."
         )
 
 
@@ -161,7 +189,7 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
             break
 
     final_src = math_script.parameters()[0].data
-    writef(f"{model}_math_solver.py", final_src)
+    writef(f"output/{model}_math_solver.py", final_src)
     print("Saved optimized solver to math_solver.py")
     # After training, math_script is the optimized solver
     return math_script
