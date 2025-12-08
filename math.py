@@ -77,8 +77,11 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
         )
 
 
+from tqdm import tqdm
+
 def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
     optimizer = OptoPrime(math_script.parameters())
+    MATH_EXAMPLES = MATH_EXAMPLES[:33]
     n = len(MATH_EXAMPLES)
 
     for epoch in range(epochs):
@@ -87,46 +90,56 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
         total = 0
         num_correct = 0
 
-        # iterate over batches
-        for start in tqdm(range(0, n, batch_size), ncols=88):
-            end = min(start + batch_size, n)
-            batch = MATH_EXAMPLES[start:end]
+        # one tqdm bar per epoch
+        with tqdm(total=n, ncols=88, desc=f"Epoch {epoch}", leave=True) as pbar:
 
-            outputs = []    # list[MessageNode[bool]] for this batch
-            feedbacks = []  # list[str] for this batch
+            for start in range(0, n, batch_size):
+                end = min(start + batch_size, n)
+                batch = MATH_EXAMPLES[start:end]
 
-            for ex in batch:
-                problem = ex["problem"]
-                gold = ex["answer"]
+                outputs = []    # list[MessageNode[bool]] for this batch
+                feedbacks = []  # list[str] for this batch
 
-                try:
-                    # Directly call the trainable function
-                    pred_node = math_script(problem)   # MessageNode[str]
-                    pred_str = pred_node.data          # underlying string
-                    fb = get_feedback(problem, gold, pred_str)
-                except trace.ExecutionError as e:
-                    # If the function crashes, treat that as the prediction node
-                    pred_node = e.exception_node
-                    fb = str(e.exception_node.data)
+                for ex in batch:
+                    problem = ex["problem"]
+                    gold = ex["answer"]
 
-                correctness = pred_node.eq(gold)   # MessageNode[bool]
-                outputs.append(correctness)
-                feedbacks.append(fb)
+                    try:
+                        # Directly call the trainable function
+                        pred_node = math_script(problem)   # MessageNode[str]
+                        pred_str = pred_node.data          # underlying string
+                        fb = get_feedback(problem, gold, pred_str)
+                    except trace.ExecutionError as e:
+                        # If the function crashes, treat that as the prediction node
+                        pred_node = e.exception_node
+                        fb = str(e.exception_node.data)
 
-                total += 1
-                if bool(correctness.data):
-                    num_correct += 1
+                    correctness = pred_node.eq(gold)   # MessageNode[bool]
+                    outputs.append(correctness)
+                    feedbacks.append(fb)
 
-            # one optimization step per batch
-            batched_outputs = concat(*outputs)      # MessageNode[str-ish]
-            batched_feedback = concat(*feedbacks)   # MessageNode[str]
+                    total += 1
+                    if bool(correctness.data):
+                        num_correct += 1
 
-            optimizer.zero_feedback()
-            optimizer.backward(batched_outputs, batched_feedback.data)
-            optimizer.step()
+                # one optimization step per batch
+                batched_outputs = concat(*outputs)      # MessageNode[str-ish]
+                batched_feedback = concat(*feedbacks)   # MessageNode[str]
 
-        acc = num_correct / total if total > 0 else 0.0
-        print(f"Epoch {epoch} accuracy: {num_correct}/{total} = {acc:.2f}")
+                optimizer.zero_feedback()
+                optimizer.backward(batched_outputs, batched_feedback.data)
+                optimizer.step()
+
+                # update tqdm
+                pbar.update(len(batch))
+                running_acc = num_correct / total if total > 0 else 0.0
+                pbar.set_postfix(
+                    acc=f"{running_acc:.3f}",
+                    correct=f"{num_correct}/{total}",
+                )
+
+        epoch_acc = num_correct / total if total > 0 else 0.0
+        print(f"Epoch {epoch} accuracy: {num_correct}/{total} = {epoch_acc:.3f}")
 
         if total > 0 and num_correct == total:
             print("All training examples solved.")
@@ -138,7 +151,7 @@ def train_math(MATH_EXAMPLES, epochs: int = 5, batch_size: int = 5):
 
 if __name__ == "__main__":
     # from data_math import MATH_EXAMPLES
-    trained_solver = train_math(MATH_EXAMPLES, epochs=3, batch_size=32)
+    trained_solver = train_math(MATH_EXAMPLES)
 
 if __name__ == "__main__":
     # import or construct MATH_EXAMPLES before calling this
