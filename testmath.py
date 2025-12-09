@@ -23,8 +23,9 @@ from opto import trace
 
 from tqdm import tqdm
 
-from data import MATH_EXAMPLES
+from data import MATH_EXAMPLES, MATH_TEST
 
+MATH_TEST = MATH_TEST[:50]
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", type=int, default=4, help="Which model to use for llm() execution.",)
 args = parser.parse_args()
@@ -139,8 +140,6 @@ def get_feedback(problem: str, gold: str, pred: str) -> str:
         f"{META_PROMPTS}"
     )
 
-
-
 @bundle(trainable=False)
 def concat(*items):
     out = ""
@@ -148,8 +147,9 @@ def concat(*items):
         out += f"ID {i}: {item}\n"
     return out
 
-
-def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
+def train_math(MATH_EXAMPLES, epochs: int = 3, batch_size: int = 7):
+    test_acc = evaluate_math(solution_workflow, MATH_TEST, name="MATH_TEST")
+    log(f"Initial test accuracy: {test_acc:.3f}")
     optimizer = OptoPrime(solution_workflow.parameters())
     MATH_EXAMPLES = MATH_EXAMPLES[:10]
     n = len(MATH_EXAMPLES)
@@ -242,13 +242,13 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
         
         train_samples = fail_samples[:]
 
-        if total > 0 and num_correct == total and len(train_samples) == len(MATH_EXAMPLES):
+        if total > 0 and num_correct == total:
             log("All training examples solved.")
             break
         else:
-            train_samples = MATH_EXAMPLES[:]
-
-
+            test_acc = evaluate_math(solution_workflow, MATH_TEST, name="MATH_TEST")
+            log(f"Epoch {epoch} test accuracy: {test_acc:.3f}")
+    
         final_src = solution_workflow.parameters()[0].data
         writef(f"output/{model}_math_solver.py", final_src)
         log("Saved optimized solver to math_solver.py")
@@ -256,8 +256,55 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
         log.saveto(f"output/{model}_log_{ts}.txt")
     return solution_workflow
 
+def evaluate_math(solver, examples, name: str = "MATH_TEST"):
+    """
+    Run the trained solver on a held-out dataset and report accuracy.
+    """
+    log(f"\n=== Evaluating on {name} ({len(examples)} examples) ===")
+    total = 0
+    num_correct = 0
+
+    with tqdm(total=len(examples), ncols=88, desc=f"Eval {name}", leave=True) as pbar:
+        for ex in examples:
+            problem = ex["problem"]
+            gold = ex["answer"]
+
+            try:
+                pred_node = solver(problem)           # MessageNode[str]
+                pred_str = pred_node.data
+            except trace.ExecutionError as e:
+                pred_node = e.exception_node
+                pred_str = str(pred_node.data)
+
+            if math_equal(pred_str, gold):
+                num_correct += 1
+                log("TEST correct!", say=False)
+            else:
+                log(
+                    f"TEST incorrect.\n"
+                    f"Problem: {problem}\nExpected: {gold}\nGot: {pred_str}\n",
+                    say=False,
+                )
+
+            total += 1
+            acc = num_correct / total if total > 0 else 0.0
+            pbar.update(1)
+            pbar.set_postfix(acc=f"{acc:.3f}", correct=f"{num_correct}/{total}")
+
+    final_acc = num_correct / total if total > 0 else 0.0
+    log(f"{name} accuracy: {num_correct}/{total} = {final_acc:.3f}")
+    return final_acc
+
 
 if __name__ == "__main__":
 
     trained_solver = train_math(MATH_EXAMPLES)
+    test_acc = evaluate_math(trained_solver, MATH_TEST, name="MATH_TEST")
 
+    final_src = solution_workflow.parameters()[0].data
+    writef(f"output/{model}_math_solver.py", final_src)
+    log(f"Saved optimized solver to output/{model}_math_solver.py")
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log(f"Final test accuracy: {test_acc:.3f}")
+    log.saveto(f"output/{model}_log_{ts}.txt")

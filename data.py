@@ -36,6 +36,7 @@ def extract_boxed_answer(solution: str) -> str:
 
 # load the AFLOW-style validation file
 val_math_raw = loadjl(root_dir / "math_validate.jsonl")
+test_math_raw = loadjl(root_dir / "math_test.jsonl")
 
 # build MATH_EXAMPLES in the format your trainer expects
 MATH_EXAMPLES = [
@@ -45,3 +46,12 @@ MATH_EXAMPLES = [
     }
     for ex in val_math_raw
 ]
+
+MATH_TEST = [
+    {
+        "problem": ex["problem"],
+        "answer": extract_boxed_answer(ex["solution"]),
+    }
+    for ex in val_math_raw
+]
+
