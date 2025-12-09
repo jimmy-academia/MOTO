@@ -1,7 +1,7 @@
 
 import asyncio
 import time
-from opto import trace
+from myopto import trace
 
 @trace.bundle()
 async def basic(a=0):

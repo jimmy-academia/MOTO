@@ -1,7 +1,7 @@
-import opto.trace as trace
-from opto.trace.bundle import TraceMissingInputsError
-from opto.trace.nodes import Node, node
-from opto.trace.utils import for_all_methods, contain
+import myopto.trace as trace
+from myopto.trace.bundle import TraceMissingInputsError
+from myopto.trace.nodes import Node, node
+from myopto.trace.utils import for_all_methods, contain
 
 
 global_var = node('This is a global variable')
@@ -10,7 +10,7 @@ global_list = [1,2,3]
 
 def run(trainable=False):
     # Test the basic usage of bundle
-    from opto.trace import bundle
+    from myopto.trace import bundle
     from functools import partial
     bundle = partial(bundle, trainable=trainable)
 

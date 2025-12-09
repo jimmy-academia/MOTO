@@ -1,7 +1,7 @@
 # This script applies Trace to optimize the workflow in TextGrad's prompt_optimization.py.
 
-from opto import trace
-from opto.optimizers import OptoPrime, TextGrad
+from myopto import trace
+from myopto.optimizers import OptoPrime, TextGrad
 import time
 
 import argparse

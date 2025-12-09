@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 name = "trace-opt"
 dynamic = ["version", "authors", "license", "requires-python", "dependencies", "description"]
 readme = "README.md"
-keywords = ["trace", "opto", "AutoDiff"]
+keywords = ["trace", "myopto", "AutoDiff"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

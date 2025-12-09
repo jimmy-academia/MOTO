@@ -1,6 +1,6 @@
 import inspect
 from collections import UserDict, UserList
-from opto.trace.nodes import ParameterNode
+from myopto.trace.nodes import ParameterNode
 import functools
 
 
@@ -11,7 +11,7 @@ class NodeContainer:
 
 
 def trainable_method(method):
-    from opto.trace.bundle import FunModule
+    from myopto.trace.bundle import FunModule
 
     if isinstance(method, FunModule):
         return method.trainable

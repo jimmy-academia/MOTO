@@ -1,7 +1,7 @@
 import copy
 
-from opto.trace.containers import NodeContainer
-from opto.trace.nodes import Node
+from myopto.trace.containers import NodeContainer
+from myopto.trace.nodes import Node
 
 
 def recursive_conversion(true_func, false_func):

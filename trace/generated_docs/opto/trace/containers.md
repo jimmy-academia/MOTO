@@ -72,9 +72,9 @@ The __next__ function is an implementation of the iterator protocol for the SeqI
 
 The function first checks if the current index (_index) is less than the length of the wrapped list of nodes. If it is, it retrieves the node at the current index using the wrapped_list attribute and assigns it to the result variable. It then increments the index by 1 to prepare for the next iteration.
 
-Next, the function creates a node object from the result using the node function from opto.trace.nodes. This step ensures that the result is always a valid node object, even if it was already a node or a different type of object.
+Next, the function creates a node object from the result using the node function from myopto.trace.nodes. This step ensures that the result is always a valid node object, even if it was already a node or a different type of object.
 
-After creating the node object, the function checks if the wrapped_list is not already a parent of the result node. If it is not, it adds the wrapped_list as a parent of the result node using the _add_parent method from opto.trace.nodes. This step ensures that the hierarchical structure of the graph is maintained correctly.
+After creating the node object, the function checks if the wrapped_list is not already a parent of the result node. If it is not, it adds the wrapped_list as a parent of the result node using the _add_parent method from myopto.trace.nodes. This step ensures that the hierarchical structure of the graph is maintained correctly.
 
 Finally, if the current index is equal to or greater than the length of the wrapped list, the function raises a StopIteration exception. This signals the end of the iteration and is the expected behavior for iterators.
 
@@ -89,8 +89,8 @@ for node in seq_iterable:
 **Note**:
 - The __next__ function is part of the iterator protocol and is automatically called when iterating over a SeqIterable object.
 - The wrapped_list attribute should be a list-like object that supports indexing and has a length.
-- The function relies on the node function from opto.trace.nodes to create node objects from the elements of the wrapped list.
-- The _add_parent method from opto.trace.nodes is used to maintain the hierarchical structure of the graph.
+- The function relies on the node function from myopto.trace.nodes to create node objects from the elements of the wrapped list.
+- The _add_parent method from myopto.trace.nodes is used to maintain the hierarchical structure of the graph.
 - The function raises a StopIteration exception when there are no more nodes to iterate over.
 
 **Output Example**: A possible return value of the __next__ function could be a node object representing the next node in the sequence.

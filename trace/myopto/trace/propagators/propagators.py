@@ -1,5 +1,5 @@
 from typing import Any, List, Dict, Tuple
-from opto.trace.nodes import Node, MessageNode, get_op_name
+from myopto.trace.nodes import Node, MessageNode, get_op_name
 
 
 class AbstractPropagator:

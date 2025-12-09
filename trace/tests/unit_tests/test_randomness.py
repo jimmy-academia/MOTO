@@ -1,4 +1,4 @@
-import opto.trace as trace
+import myopto.trace as trace
 import random
 
 seed = 0

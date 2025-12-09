@@ -1,7 +1,7 @@
-from opto.trace import node
-from opto.trace.broadcast import apply_op
-from opto.trace.containers import NodeContainer
-import opto.trace.operators as ops
+from myopto.trace import node
+from myopto.trace.broadcast import apply_op
+from myopto.trace.containers import NodeContainer
+import myopto.trace.operators as ops
 
 
 class SubContainer(NodeContainer):

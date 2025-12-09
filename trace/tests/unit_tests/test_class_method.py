@@ -1,4 +1,4 @@
-from opto import trace
+from myopto import trace
 from copy import deepcopy, copy
 
 @trace.model
@@ -40,7 +40,7 @@ def test_case_two_models():
     y1 = m1.forward(1)
     y2 = m1.forward(2)
 
-    from opto.trace.utils import contain
+    from myopto.trace.utils import contain
     # self is not duplicated
     assert contain(y1.parents, m1.__TRACE_RESERVED_self_node)
     assert contain(y2.parents, m1.__TRACE_RESERVED_self_node)
@@ -84,7 +84,7 @@ def test_case_model_copy():
     y1 = m1.forward(1)
     y2 = m2.forward(2)
 
-    from opto.trace.utils import contain
+    from myopto.trace.utils import contain
     # self is not duplicated
     assert contain(y1.parents, m1.__TRACE_RESERVED_self_node)
     assert contain(y2.parents, m2.__TRACE_RESERVED_self_node)
@@ -130,7 +130,7 @@ def test_case_model_nested_copy():
     y1 = m1.forward(1)
     y2 = m2.forward(2)
 
-    from opto.trace.utils import contain
+    from myopto.trace.utils import contain
     # self is not duplicated
     assert contain(y1.parents, m1.__TRACE_RESERVED_self_node)
     assert contain(y2.parents, m2.__TRACE_RESERVED_self_node)

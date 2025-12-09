@@ -1,5 +1,5 @@
 
-from opto import trace
+from myopto import trace
 bundle = trace.bundle
 # Test different decorator usages
 

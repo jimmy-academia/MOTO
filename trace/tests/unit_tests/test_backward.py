@@ -1,8 +1,8 @@
 import copy
-from opto.trace import node, bundle
-from opto.trace.nodes import GRAPH, Node
-from opto.trace.propagators import GraphPropagator
-from opto.optimizers.optoprime import node_to_function_feedback
+from myopto.trace import node, bundle
+from myopto.trace.nodes import GRAPH, Node
+from myopto.trace.propagators import GraphPropagator
+from myopto.optimizers.optoprime import node_to_function_feedback
 
 
 x = node(1, name="x", trainable=True)

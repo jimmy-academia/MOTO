@@ -1,8 +1,8 @@
 import os
 import pickle
 import copy
-from opto.trace.containers import ParameterContainer
-from opto.trace.nodes import ParameterNode
+from myopto.trace.containers import ParameterContainer
+from myopto.trace.nodes import ParameterNode
 
 
 def model(cls):

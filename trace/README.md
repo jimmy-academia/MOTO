@@ -59,7 +59,7 @@ Trace has two primitives: `node` and `bundle`. `node` is a primitive to define a
 is a primitive to define a function that can be optimized.
 
 ```python
-from opto.trace import node
+from myopto.trace import node
 
 x = node(1, trainable=True)
 y = node(3)
@@ -84,7 +84,7 @@ For functions, Trace uses decorators like @bundle to wrap over Python functions.
 other Python function.
 
 ```python
-from opto.trace import node, bundle
+from myopto.trace import node, bundle
 
 
 @bundle(trainable=True)
@@ -107,7 +107,7 @@ Now, after declaring what is trainable and what isn't, and use `node` and `bundl
 can use the optimizer to optimize the computation graph.
 
 ```python
-from opto.optimizers import OptoPrime
+from myopto.optimizers import OptoPrime
 
 
 # we first declare a feedback function
@@ -145,7 +145,7 @@ Then, we can use the familiar PyTorch-like syntax to conduct the optimization.
 Here is another example of a simple sales agent:
 
 ```python
-from opto import trace
+from myopto import trace
 
 @trace.model
 class Agent:
@@ -181,7 +181,7 @@ class Agent:
 Imagine we have a feedback function (like a reward function) that tells us how well the agent is doing. We can then optimize this agent online:
 
 ```python
-from opto.optimizers import OptoPrime
+from myopto.optimizers import OptoPrime
 
 def feedback_fn(generated_response, gold_label='en'):
     if  gold_label == 'en' and 'Hello' in generated_response:
@@ -288,7 +288,7 @@ or in python before importing `opto`
 ```python
 import os
 os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "<your LLM backend here>"  # 'LiteLLM' or 'AutoGen`
-import opto
+import myopto
 ```
 
 

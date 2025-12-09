@@ -1,5 +1,5 @@
-from opto import trace
-from opto.optimizers import OptoPrime
+from myopto import trace
+from myopto.optimizers import OptoPrime
 
 # NOTE use Node objects in boolean expressions to have consistent behavior.
 

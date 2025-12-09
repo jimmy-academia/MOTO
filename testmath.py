@@ -131,7 +131,6 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
             if batch_size < 5 and sub_correct == batch_size:
                 batch_size += 1
 
-            sub_correct = 0
             while end != n:
                 end = min(start + batch_size, n)
                 batch = MATH_EXAMPLES[start:end]
@@ -143,6 +142,7 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
 
                 outputs = []    # list[MessageNode[bool]] for this batch
                 feedbacks = []  # list[str] for this batch
+                sub_correct = 0
 
                 for ex in batch:
                     problem = ex["problem"]

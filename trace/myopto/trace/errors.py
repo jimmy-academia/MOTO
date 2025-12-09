@@ -1,4 +1,4 @@
-from opto.trace.nodes import ExceptionNode
+from myopto.trace.nodes import ExceptionNode
 
 
 class ExecutionError(Exception):

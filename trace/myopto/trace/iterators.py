@@ -1,9 +1,9 @@
-from opto.trace.nodes import node, Node, ExceptionNode
+from myopto.trace.nodes import node, Node, ExceptionNode
 from typing import Any
 
-from opto.trace.bundle import bundle
-import opto.trace.operators as ops
-from opto.trace.errors import ExecutionError
+from myopto.trace.bundle import bundle
+import myopto.trace.operators as ops
+from myopto.trace.errors import ExecutionError
 import numpy as np
 
 # List[Nodes], Node[List]

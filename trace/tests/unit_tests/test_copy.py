@@ -1,7 +1,7 @@
-from opto import trace
-from opto.optimizers import OptoPrime
+from myopto import trace
+from myopto.optimizers import OptoPrime
 import copy
-from opto.utils.llm import LLM
+from myopto.utils.llm import LLM
 
 x = trace.node('x')
 copy.deepcopy(x)

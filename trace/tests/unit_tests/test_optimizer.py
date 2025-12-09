@@ -1,6 +1,6 @@
 import os
-from opto.trace import bundle, node, GRAPH
-from opto.optimizers import OptoPrime
+from myopto.trace import bundle, node, GRAPH
+from myopto.optimizers import OptoPrime
 
 
 # Test the optimizer with an example of number

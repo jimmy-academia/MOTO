@@ -1,16 +1,16 @@
 import autogen
-from opto.trace.nodes import node, GRAPH, ParameterNode
+from myopto.trace.nodes import node, GRAPH, ParameterNode
 import string
 import random
 import numpy as np
 from textwrap import dedent
-from opto.optimizers import OptoPrime
+from myopto.optimizers import OptoPrime
 from datasets import load_dataset
 
 from typing import List
 import copy
-from opto.trace.nodes import Node
-from opto.trace import model, bundle, ExecutionError
+from myopto.trace.nodes import Node
+from myopto.trace import model, bundle, ExecutionError
 
 import re
 from tqdm import tqdm

@@ -1,4 +1,4 @@
-from opto import trace
+from myopto import trace
 
 x = trace.node(1)
 y = 2

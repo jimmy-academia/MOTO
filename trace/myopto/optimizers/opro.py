@@ -1,7 +1,7 @@
 import json
 from textwrap import dedent
 
-from opto.optimizers.optoprime import OptoPrime
+from myopto.optimizers.optoprime import OptoPrime
 
 
 class OPRO(OptoPrime):

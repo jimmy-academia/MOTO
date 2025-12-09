@@ -1,6 +1,6 @@
 
 
-from opto import trace
+from myopto import trace
 
 @trace.bundle(trainable=True)
 def fun(x):

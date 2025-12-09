@@ -5,12 +5,12 @@ import warnings
 import json
 import re
 import copy
-from opto.trace.nodes import ParameterNode, Node, MessageNode
-from opto.trace.propagators import TraceGraph, GraphPropagator
-from opto.trace.propagators.propagators import Propagator
-from opto.optimizers.optimizer import Optimizer
-from opto.optimizers.buffers import FIFOBuffer
-from opto.utils.llm import AbstractModel, LLM
+from myopto.trace.nodes import ParameterNode, Node, MessageNode
+from myopto.trace.propagators import TraceGraph, GraphPropagator
+from myopto.trace.propagators.propagators import Propagator
+from myopto.optimizers.optimizer import Optimizer
+from myopto.optimizers.buffers import FIFOBuffer
+from myopto.utils.llm import AbstractModel, LLM
 
 from black import format_str, FileMode
 

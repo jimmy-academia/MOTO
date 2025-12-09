@@ -1,6 +1,6 @@
-from opto import trace
-from opto.trace import node, bundle, model, ExecutionError
-from opto.optimizers import OptoPrime
+from myopto import trace
+from myopto.trace import node, bundle, model, ExecutionError
+from myopto.optimizers import OptoPrime
 
 
 @trace.model

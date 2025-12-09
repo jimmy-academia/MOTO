@@ -4,9 +4,9 @@ In the previous two sections, we showed how to decorate Python functions for Tra
 Now, we will demonstrate how Trace can be used to create interactive agents that learn emergent behaviors in a multi-agent environment.
 
 ```python
-import opto.trace as trace
-from opto.trace import node, bundle, model, GRAPH
-from opto.optimizers import OptoPrime
+import myopto.trace as trace
+from myopto.trace import node, bundle, model, GRAPH
+from myopto.optimizers import OptoPrime
 ```
 
 ## 🏠 VirtualHome

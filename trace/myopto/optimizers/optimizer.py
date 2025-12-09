@@ -1,9 +1,9 @@
 from typing import Any, List, Dict
 
-from opto.trace.nodes import ParameterNode, Node
-from opto.trace.propagators import GraphPropagator
-from opto.trace.propagators.propagators import Propagator
-from opto.trace.utils import sum_feedback
+from myopto.trace.nodes import ParameterNode, Node
+from myopto.trace.propagators import GraphPropagator
+from myopto.trace.propagators.propagators import Propagator
+from myopto.trace.utils import sum_feedback
 
 
 class AbstractOptimizer:

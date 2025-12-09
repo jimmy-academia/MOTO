@@ -1,9 +1,9 @@
 import os
-from opto.trace.bundle import bundle, ExecutionError
-from opto.trace.nodes import Node, node, ExceptionNode
-from opto.trace.utils import for_all_methods
-from opto.trace import model
-from opto.optimizers.optoprime import OptoPrime
+from myopto.trace.bundle import bundle, ExecutionError
+from myopto.trace.nodes import Node, node, ExceptionNode
+from myopto.trace.utils import for_all_methods
+from myopto.trace import model
+from myopto.optimizers.optoprime import OptoPrime
 
 x = Node(1, name="node_x")
 y = Node(0, name="node_y")

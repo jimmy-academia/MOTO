@@ -3,8 +3,8 @@ import trace
 from typing import TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:  # to prevent circular import
-    from opto.trace.nodes import Node
-from opto.trace.bundle import bundle
+    from myopto.trace.nodes import Node
+from myopto.trace.bundle import bundle
 import copy
 
 
@@ -594,7 +594,7 @@ def call_llm(system_prompt, *user_prompts, **kwargs):
     messages = [{"role": "system", "content": system_prompt}]
     for user_prompt in user_prompts:
         messages.append({"role": "user", "content": user_prompt})
-    from opto.utils.llm import LLM
+    from myopto.utils.llm import LLM
     llm = LLM()
     response = llm(messages=messages, **kwargs)
     return response.choices[0].message.content

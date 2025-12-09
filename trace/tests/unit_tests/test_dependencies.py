@@ -1,6 +1,6 @@
 # %%
-from opto.trace import node, bundle
-from opto.trace.utils import contain, sum_feedback
+from myopto.trace import node, bundle
+from myopto.trace.utils import contain, sum_feedback
 
 
 # check dependencies

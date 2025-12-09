@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, List, Dict, Tuple
-from opto.trace.nodes import (
+from myopto.trace.nodes import (
     Node,
     MessageNode,
     ParameterNode,
@@ -8,9 +8,9 @@ from opto.trace.nodes import (
     IDENTITY_OPERATORS,
     NodeVizStyleGuideColorful,
 )
-from opto.trace.propagators.propagators import Propagator, AbstractFeedback
+from myopto.trace.propagators.propagators import Propagator, AbstractFeedback
 import heapq
-from opto.trace.utils import sum_feedback, contain
+from myopto.trace.utils import sum_feedback, contain
 
 
 @dataclass

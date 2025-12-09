@@ -948,7 +948,7 @@ class Node(AbstractNode[T]):
             Visualization is handled using graphviz if enabled, with options to simplify the graph by skipping identity operators.
         """
         if propagator is None:
-            from opto.trace.propagators.graph_propagator import (
+            from myopto.trace.propagators.graph_propagator import (
                 GraphPropagator,
             )  # this avoids circular import
 
@@ -1051,7 +1051,7 @@ class Node(AbstractNode[T]):
         Returns:
             Node: A clone of the current node.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.clone(self)
 
@@ -1073,7 +1073,7 @@ class Node(AbstractNode[T]):
         Returns:
             Node: A node containing the requested attribute.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.node_getattr(self, node(key))
 
@@ -1106,7 +1106,7 @@ class Node(AbstractNode[T]):
             By using the __call__ method, the Node object can be used as if it were a regular
             callable function, providing a seamless interface for function invocation.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         output = ops.call(self, *args, **kwargs)
         return output
@@ -1122,7 +1122,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.len_(self)
 
@@ -1138,7 +1138,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.getitem(self, node(key))
 
@@ -1154,7 +1154,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.in_(node(item), self)
 
@@ -1168,7 +1168,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.pos(self)
 
@@ -1181,7 +1181,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.neg(self)
 
@@ -1194,7 +1194,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.abs(self)
 
@@ -1207,7 +1207,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.invert(self)
 
@@ -1223,7 +1223,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.round(self, node(n) if n is not None else None)
 
@@ -1236,7 +1236,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.floor(self)
 
@@ -1249,7 +1249,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.ceil(self)
 
@@ -1262,7 +1262,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.trunc(self)
 
@@ -1279,7 +1279,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         if type(self._data) is str:
             return ops.concat(self, node(other))
@@ -1312,7 +1312,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.subtract(self, node(other))
 
@@ -1342,7 +1342,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.multiply(self, node(other))
 
@@ -1372,7 +1372,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.floor_divide(self, node(other))
 
@@ -1402,7 +1402,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.divide(self, node(other))
 
@@ -1432,7 +1432,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.divide(self, node(other))
 
@@ -1462,7 +1462,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.mod(self, node(other))
 
@@ -1492,7 +1492,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.node_divmod(self, node(other))
 
@@ -1522,7 +1522,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.power(self, node(other))
 
@@ -1552,7 +1552,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.lshift(self, node(other))
 
@@ -1582,7 +1582,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.rshift(self, node(other))
 
@@ -1612,7 +1612,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.and_(self, node(other))
 
@@ -1642,7 +1642,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.or_(self, node(other))
 
@@ -1672,7 +1672,7 @@ class Node(AbstractNode[T]):
         Notes:
             We overload magic methods that return a value. This method returns a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.xor(self, node(other))
 
@@ -1700,7 +1700,7 @@ class Node(AbstractNode[T]):
             The Node object must have a data attribute that is a list, tuple, set, or dictionary.
             The iterate function called by __iter__ handles the conversion of sets to lists and wraps items in lists or dictionaries with node objects.
         """
-        import opto.trace.iterators as it
+        import myopto.trace.iterators as it
 
         return it.iterate(self)
 
@@ -1734,7 +1734,7 @@ class Node(AbstractNode[T]):
             If a logic operator is used in an if-statement, it will return a boolean value.
             Otherwise, it will return a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.lt(self, node(other))
         # if isinstance(other, Node):
@@ -1754,7 +1754,7 @@ class Node(AbstractNode[T]):
             If a logic operator is used in an if-statement, it will return a boolean value.
             Otherwise, it will return a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.le(self, node(other))
         # if isinstance(other, Node):
@@ -1774,7 +1774,7 @@ class Node(AbstractNode[T]):
             If a logic operator is used in an if-statement, it will return a boolean value.
             Otherwise, it will return a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.gt(self, node(other))
         # if isinstance(other, Node):
@@ -1794,7 +1794,7 @@ class Node(AbstractNode[T]):
             If a logic operator is used in an if-statement, it will return a boolean value.
             Otherwise, it will return a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.ge(self, node(other))
         # if isinstance(other, Node):
@@ -1815,7 +1815,7 @@ class Node(AbstractNode[T]):
         Notes:
             __eq__ restricts return type to be bool; otherwise, it will create issues (for example, the "in" operator will not work).
         """
-        # import opto.trace.operators as ops
+        # import myopto.trace.operators as ops
         # return ops.eq(self, node(other))
         if isinstance(other, Node):
             other = other.data
@@ -1834,7 +1834,7 @@ class Node(AbstractNode[T]):
             If a logic operator is used in an if-statement, it will return a boolean value.
             Otherwise, it will return a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.eq(self, node(other))
 
@@ -1851,7 +1851,7 @@ class Node(AbstractNode[T]):
             If a logic operator is used in an if-statement, it will return a boolean value.
             Otherwise, it will return a MessageNode.
         """
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.neq(self, node(other))
 
@@ -1882,7 +1882,7 @@ class Node(AbstractNode[T]):
                 f"{type(self._data)} object has no attribute 'format'."
             )
 
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.format(self, *args, **kwargs)
 
@@ -1891,21 +1891,21 @@ class Node(AbstractNode[T]):
             raise AttributeError(
                 f"{type(self._data)} object has no attribute 'capitalize'."
             )
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.capitalize(self)
 
     def lower(self):
         if type(self._data) is not str:
             raise AttributeError(f"{type(self._data)} object has no attribute 'lower'.")
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.lower(self)
 
     def upper(self):
         if type(self._data) is not str:
             raise AttributeError(f"{type(self._data)} object has no attribute 'upper'.")
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.upper(self)
 
@@ -1914,28 +1914,28 @@ class Node(AbstractNode[T]):
             raise AttributeError(
                 f"{type(self._data)} object has no attribute 'swapcase'."
             )
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.swapcase(self)
 
     def title(self):
         if type(self._data) is not str:
             raise AttributeError(f"{type(self._data)} object has no attribute 'title'.")
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.title(self)
 
     def split(self, sep=None, maxsplit=-1):
         if type(self._data) is not str:
             raise AttributeError(f"{type(self._data)} object has no attribute 'split'.")
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.split(self, sep, maxsplit)
 
     def strip(self, chars=None):
         if type(self._data) is not str:
             raise AttributeError(f"{type(self._data)} object has no attribute 'strip'.")
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.strip(self, chars)
 
@@ -1944,7 +1944,7 @@ class Node(AbstractNode[T]):
             raise AttributeError(
                 f"{type(self._data)} object has no attribute 'replace'."
             )
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.replace(self, node(old), node(new), count)
 
@@ -1957,7 +1957,7 @@ class Node(AbstractNode[T]):
         except TypeError:
             raise TypeError("Can only join an iterable.")
 
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.join(self, *seq)
 
@@ -1965,12 +1965,12 @@ class Node(AbstractNode[T]):
     def items(self):
         if not isinstance(self._data, dict):
             raise AttributeError(f"{type(self._data)} object has no attribute 'items'.")
-        import opto.trace.iterators as it
+        import myopto.trace.iterators as it
 
         return it.DictIterable(self)
 
     def values(self):
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.values(self)
 
@@ -1978,13 +1978,13 @@ class Node(AbstractNode[T]):
         if not isinstance(self._data, dict):
             raise AttributeError(f"{type(self._data)} object has no attribute 'keys'.")
 
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.keys(self)
 
     def pop(self, __index=-1):
         # python does hidden type checks
-        import opto.trace.operators as ops
+        import myopto.trace.operators as ops
 
         return ops.pop(self, node(__index))
 

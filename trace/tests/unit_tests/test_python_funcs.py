@@ -2,9 +2,9 @@
 This tests all the functions of Lisp Interpreter
 To make sure things work
 """
-from opto.trace.nodes import node, Node
-from opto.trace import operators as ops
-from opto.trace.bundle import bundle
+from myopto.trace.nodes import node, Node
+from myopto.trace import operators as ops
+from myopto.trace.bundle import bundle
 import math
 
 

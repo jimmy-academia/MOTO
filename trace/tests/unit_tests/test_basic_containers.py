@@ -1,6 +1,6 @@
-from opto import trace
-from opto.trace import operators as ops
-from opto.trace.utils import contain
+from myopto import trace
+from myopto.trace import operators as ops
+from myopto.trace.utils import contain
 
 
 # Test node of list

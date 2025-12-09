@@ -1,5 +1,5 @@
-from opto.trace.bundle import to_data
-from opto.trace import node
+from myopto.trace.bundle import to_data
+from myopto.trace import node
 
 def simple_test_unnested():
     a = node(1)

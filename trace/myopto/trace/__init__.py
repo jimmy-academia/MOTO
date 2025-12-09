@@ -1,12 +1,12 @@
-from opto.trace.bundle import bundle, ExecutionError
-from opto.trace.modules import Module, model
-from opto.trace.containers import NodeContainer
-from opto.trace.broadcast import apply_op
-import opto.trace.propagators as propagators
-import opto.trace.operators as operators
+from myopto.trace.bundle import bundle, ExecutionError
+from myopto.trace.modules import Module, model
+from myopto.trace.containers import NodeContainer
+from myopto.trace.broadcast import apply_op
+import myopto.trace.propagators as propagators
+import myopto.trace.operators as operators
 
-from opto.trace.nodes import Node, GRAPH
-from opto.trace.nodes import node
+from myopto.trace.nodes import Node, GRAPH
+from myopto.trace.nodes import node
 
 
 class stop_tracing:

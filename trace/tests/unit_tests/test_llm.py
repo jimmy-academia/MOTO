@@ -1,5 +1,5 @@
-from opto.utils.llm import LLM
-from opto.optimizers.utils import print_color
+from myopto.utils.llm import LLM
+from myopto.optimizers.utils import print_color
 import os
 
 if os.path.exists("OAI_CONFIG_LIST") or os.environ.get("TRACE_LITELLM_MODEL") or os.environ.get("OPENAI_API_KEY"):

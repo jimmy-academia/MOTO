@@ -1,7 +1,7 @@
-from opto.trace import node, bundle
-from opto.trace.modules import apply_op
-from opto.trace.modules import NodeContainer
-import opto.trace.operators as ops
+from myopto.trace import node, bundle
+from myopto.trace.modules import apply_op
+from myopto.trace.modules import NodeContainer
+import myopto.trace.operators as ops
 
 # ========== Case 1 ==========
 

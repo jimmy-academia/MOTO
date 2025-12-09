@@ -1,7 +1,7 @@
 import copy
-from opto.trace import node
-from opto.trace import operators as ops
-from opto.trace.utils import contain
+from myopto.trace import node
+from myopto.trace import operators as ops
+from myopto.trace.utils import contain
 import numpy as np
 
 # Sum of str

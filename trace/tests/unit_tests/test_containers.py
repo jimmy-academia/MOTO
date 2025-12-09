@@ -1,6 +1,6 @@
-from opto.trace.containers import Map, Seq
-from opto.trace.nodes import node
-from opto.trace.bundle import bundle
+from myopto.trace.containers import Map, Seq
+from myopto.trace.nodes import node
+from myopto.trace.bundle import bundle
 import os
 import pickle
 

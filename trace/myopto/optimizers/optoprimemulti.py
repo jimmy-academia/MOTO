@@ -2,8 +2,8 @@ from typing import Any, List, Dict, Union, Tuple, Optional
 import json
 from textwrap import dedent
 
-from opto.trace.propagators import GraphPropagator
-from opto.optimizers.optoprime import OptoPrime
+from myopto.trace.propagators import GraphPropagator
+from myopto.optimizers.optoprime import OptoPrime
 
 
 class OptoPrimeMulti(OptoPrime):

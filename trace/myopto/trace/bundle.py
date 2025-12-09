@@ -9,11 +9,11 @@ import asyncio
 
 from typing import List, Dict, Callable, Union, Any
 
-from opto.trace.broadcast import recursive_conversion
-from opto.trace.errors import ExecutionError, TraceMissingInputsError
-from opto.trace.modules import Module
-from opto.trace.nodes import GRAPH
-from opto.trace.nodes import (
+from myopto.trace.broadcast import recursive_conversion
+from myopto.trace.errors import ExecutionError, TraceMissingInputsError
+from myopto.trace.modules import Module
+from myopto.trace.nodes import GRAPH
+from myopto.trace.nodes import (
     MessageNode,
     USED_NODES,
     Node,
@@ -22,7 +22,7 @@ from opto.trace.nodes import (
     node,
     get_op_name,
 )
-from opto.trace.utils import contain
+from myopto.trace.utils import contain
 
 
 def bundle(

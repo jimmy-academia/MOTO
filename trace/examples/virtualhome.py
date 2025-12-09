@@ -8,8 +8,8 @@ from difflib import SequenceMatcher
 
 import autogen
 
-import opto.trace as trace
-from opto.trace.nodes import node
+import myopto.trace as trace
+from myopto.trace.nodes import node
 
 
 class LLMCallable:

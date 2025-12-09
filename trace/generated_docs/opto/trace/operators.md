@@ -131,7 +131,7 @@ In the project, this function is called by the `__floor__` method of the `Node` 
 
 **Code Description**: The ceil function is designed to round up a given numeric value to the nearest integer. It imports the math module and utilizes the math.ceil() method to perform this operation. The function takes a single parameter, x, which can be any numeric type. When called, it returns the smallest integer that is greater than or equal to x.
 
-In the context of the project, the ceil function is called by the __ceil__ method of the Node class located in opto\trace\nodes.py. This indicates that the Node class leverages the ceil function to provide a ceiling operation on its instances. When __ceil__ is invoked on a Node object, it imports the ceil function from opto.trace.operators and applies it to the Node instance, effectively rounding up the value represented by the Node.
+In the context of the project, the ceil function is called by the __ceil__ method of the Node class located in opto\trace\nodes.py. This indicates that the Node class leverages the ceil function to provide a ceiling operation on its instances. When __ceil__ is invoked on a Node object, it imports the ceil function from myopto.trace.operators and applies it to the Node instance, effectively rounding up the value represented by the Node.
 
 **Note**: Ensure that the input parameter x is a numeric value; otherwise, the function will raise a TypeError. The function relies on the math module, so it must be available in the environment where the code is executed.
 
@@ -147,7 +147,7 @@ In the context of the project, the ceil function is called by the __ceil__ metho
 
 **Code Description**: The trunc function is designed to truncate the decimal part of a given number, effectively returning its integer part. This is achieved by utilizing the math.trunc function from Python's math module. When the trunc function is called with a number x, it imports the math module and then applies math.trunc to x, returning the truncated integer value.
 
-In the context of the project, the trunc function is called by the __trunc__ method of the Node class located in opto\trace\nodes.py. The __trunc__ method imports the trunc function from opto.trace.operators and applies it to the instance of the Node class. This indicates that the Node class instances can be truncated using the trunc function, ensuring that any Node object can be converted to its integer representation if needed.
+In the context of the project, the trunc function is called by the __trunc__ method of the Node class located in opto\trace\nodes.py. The __trunc__ method imports the trunc function from myopto.trace.operators and applies it to the instance of the Node class. This indicates that the Node class instances can be truncated using the trunc function, ensuring that any Node object can be converted to its integer representation if needed.
 
 **Note**: 
 - Ensure that the input x is a type that can be handled by the math.trunc function, such as an integer or a float.
@@ -165,7 +165,7 @@ If the input x is -2.99, the function will return -2.
 
 **Code Description**: The add function takes two parameters, x and y, and returns their sum. The function is designed to handle operands of any type, leveraging Python's dynamic typing and operator overloading capabilities. This means that the function can add numbers, concatenate strings, or combine other compatible types as defined by the '+' operator in Python.
 
-In the project, the add function is utilized in the __add__ method of the Node class located in opto\trace\nodes.py. When the __add__ method is called on a Node object, it imports the add function from opto.trace.operators and uses it to add the Node's data to another operand. This demonstrates the function's flexibility in handling different types of data within the Node class.
+In the project, the add function is utilized in the __add__ method of the Node class located in opto\trace\nodes.py. When the __add__ method is called on a Node object, it imports the add function from myopto.trace.operators and uses it to add the Node's data to another operand. This demonstrates the function's flexibility in handling different types of data within the Node class.
 
 **Note**: Ensure that the types of x and y are compatible with the '+' operator to avoid runtime errors. For example, adding a string to an integer will raise a TypeError.
 
@@ -226,7 +226,7 @@ If x = 7 and y = 3, the function call floor_divide(7, 3) will return 2, as 7 // 
 
 **Code Description**: The divide function takes two parameters, x and y, and returns the result of dividing x by y. This function is designed to handle any types that support the division operation. It is a straightforward implementation of the division operator, encapsulated within a function for modularity and reuse.
 
-In the context of the project, the divide function is called by the __truediv__ method of the Node class located in opto\trace\nodes.py. When the division operator (/) is used between two Node objects, the __truediv__ method is invoked. This method imports the divide function from opto.trace.operators and applies it to the current Node instance (self) and the other operand (other), which is converted to a Node if it is not already one. This ensures that the division operation is consistently handled within the framework of Node objects.
+In the context of the project, the divide function is called by the __truediv__ method of the Node class located in opto\trace\nodes.py. When the division operator (/) is used between two Node objects, the __truediv__ method is invoked. This method imports the divide function from myopto.trace.operators and applies it to the current Node instance (self) and the other operand (other), which is converted to a Node if it is not already one. This ensures that the division operation is consistently handled within the framework of Node objects.
 
 **Note**: Ensure that the divisor y is not zero to avoid a ZeroDivisionError. Additionally, both x and y should be of compatible types that support the division operation.
 

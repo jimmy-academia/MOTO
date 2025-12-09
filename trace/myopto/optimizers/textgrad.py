@@ -1,11 +1,11 @@
 import json
 from dataclasses import dataclass
 from typing import Any, List, Dict, Union, Tuple, Optional
-from opto.optimizers.optimizer import Optimizer
-from opto.trace.nodes import ParameterNode, Node, MessageNode
-from opto.trace.propagators import TraceGraph, GraphPropagator, Propagator
-from opto.trace.utils import escape_json_nested_quotes, remove_non_ascii
-from opto.utils.llm import LLM, AbstractModel
+from myopto.optimizers.optimizer import Optimizer
+from myopto.trace.nodes import ParameterNode, Node, MessageNode
+from myopto.trace.propagators import TraceGraph, GraphPropagator, Propagator
+from myopto.trace.utils import escape_json_nested_quotes, remove_non_ascii
+from myopto.utils.llm import LLM, AbstractModel
 
 from copy import copy
 import re
