@@ -109,18 +109,20 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
     MATH_EXAMPLES = MATH_EXAMPLES[:35]
     n = len(MATH_EXAMPLES)
     train_samples = MATH_EXAMPLES[:]
-    batch_size = 0
+    batch_size = 1
     for epoch in range(epochs):
         log(f"\n=== Epoch {epoch} ===")
 
         total = num_correct = start = end = 0
-        if batch_size < 5:
-            batch_size += 1
-
+        sub_correct = 0
         fail_samples = []
         # one tqdm bar per epoch
         with tqdm(total=n, ncols=88, desc=f"Epoch {epoch}", leave=True) as pbar:
 
+            if batch_size < 5 and sub_correct == batch_size:
+                batch_size += 1
+
+            sub_correct = 0
             while end != n:
                 end = min(start + batch_size, n)
                 batch = MATH_EXAMPLES[start:end]
@@ -155,12 +157,16 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
                     total += 1
                     if bool(correctness.data):
                         num_correct += 1
+                        sub_correct += 1
                         log('correct!')
                     else:
                         log('incorrect!')
                     running_acc = num_correct / total if total > 0 else 0.0
+                    sub_running_acc = sub_correct / batch_size
+
                     pbar.set_postfix(
                         acc=f"{running_acc:.3f}",
+                        sacc=f"{sub_running_acc:.3f}",
                         correct=f"{num_correct}/{total}",
                         bs = batch_size
                     )

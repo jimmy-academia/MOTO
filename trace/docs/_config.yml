@@ -1,0 +1,72 @@
+# Book settings
+# Learn more at https://jupyterbook.org/customize/config.html
+
+title: Trace
+author: Ching-An Cheng, Allen Nie, Adith Swaminathan
+copyright: "2024 Trace Team"
+logo: trace_logo.png
+only_build_toc_files: true
+
+# Force re-execution of notebooks on each build.
+# See https://jupyterbook.org/content/execute.html
+execute:
+  execute_notebooks: off
+
+# Define the name of the latex output file for PDF builds
+latex:
+  latex_documents:
+    targetname: book.tex
+
+# Add a bibtex file so that we can create citations
+#bibtex_bibfiles:
+#  - references.bib
+
+# Information about where the book exists on the web
+repository:
+  url: https://github.com/microsoft/Trace  # Online location of your book
+  path_to_book: docs  # Optional path to your book, relative to the repository root
+  branch: website  # Which branch of the repository should be used when creating links (optional)
+
+launch_buttons:
+  colab_url: "https://colab.research.google.com"
+
+# Add GitHub buttons to your book
+# See https://jupyterbook.org/customize/config.html#add-a-link-to-your-repository
+html:
+  use_issues_button: false
+  use_repository_button: true
+  extra_navbar: <a href="intro.html">Go to Book Content</a>
+  extra_footer: "<a href='mailto:chinganc@microsoft.com'>Contact Us</a> | <a href='http://go.microsoft.com/fwlink/?LinkId=521839'>Privacy &amp; Cookies</a> | <a href='https://go.microsoft.com/fwlink/?linkid=2259814'>Consumer Health Privacy</a> | <a href='https://go.microsoft.com/fwlink/?LinkID=206977'>Terms Of Use</a> | <a href='https://www.microsoft.com/trademarks'>Trademarks</a>"
+  analytics:
+    plausible_analytics_domain: microsoft.github.io/trace
+    plausible_analytics_url: https://plausible.io/js/script.js
+
+sphinx:
+  html_context:
+    default_mode: light
+  extra_extensions:
+  - 'sphinx_plausible'
+  - 'sphinx.ext.autodoc'
+  - 'sphinx.ext.napoleon'
+  - 'sphinx.ext.autosummary'
+  - 'sphinx.ext.viewcode'
+  config:
+    html_theme_options :
+      pygment_light_style : "xcode"
+    add_module_names: false
+    plausible_domain: microsoft.github.io/trace
+    nb_merge_streams: true
+    templates_path: ["_templates"]
+    autosummary_generate: True
+    autodoc_mock_imports: ['autogen']
+    suppress_warnings: ["etoc.toctree"]
+    # autodoc settings
+    # ref: https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html#configuration
+    autoclass_content:                 both
+    autodoc_class_signature:           separated
+    autodoc_member_order:              groupwise
+    autodoc_docstring_signature:       True
+    autodoc_typehints:                 signature
+    autodoc_typehints_format:          short
+    autosummary_filename_map:
+      opto.trace.nodes.node: "opto.trace.nodes.node-function"
