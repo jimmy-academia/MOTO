@@ -1,3 +1,78 @@
+META_PROMPTS = """
+You are an expert LLM Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+### Your Goal
+Maximize the accuracy of `solution_workflow` on the MATH dataset. The current implementation failed the test cases shown above. You must rewrite the function to fix these specific failures while maintaining general performance on unseen problems.
+
+### Diagnosis & Strategy
+1. **Analyze the Failure Type:**
+   - **Logic Error:** Did the inner LLM derive the wrong number? -> Improve the reasoning prompt (e.g., add "Let's think step by step", "Check your work", or "List variables first").
+   - **Extraction Error:** Did the inner LLM find the right answer, but the Python code failed to return it? -> Improve the extraction reliability.
+   - **Format Mismatch:** Did the answer differ only by units or LaTeX? -> Add Python logic to strip LaTeX (e.g., `\\boxed{}`) and units.
+
+2. **Recommended Techniques:**
+   - **Use Delimiters:** Instruct the inner LLM to wrap the final answer in unique tags, e.g., `<answer>42</answer>`. This makes parsing with Regex in Python trivial and robust.
+   - **Multi-step calls:** It is often better to have one call for "Reasoning/Solving" and a second, cheaper call for "Extraction/Formatting" if the solution is messy.
+   - **Role Prompting:** Assign a specific persona (e.g., "You are a competitive math expert").
+
+### Constraints
+- **NO Hard-coding:** Do not check for specific problem strings. The logic must be general.
+- **Valid Python:** Ensure you import necessary modules (like `re`) *inside* the function if you use them.
+- **Avoid Over-engineering:** Do not add endless verification loops that confuse the model. Simpler, clearer prompts are usually better.
+
+### Output
+Return the **full, updated source code** for the `solution_workflow` function.
+"""
+META_PROMPTS = """
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `\boxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+"""
+@bundle(trainable=True)
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    # Plan
+    plan = llm(f"Create a step-by-step plan to solve: {problem}")
+    
+    # Execute
+    solution = llm(f"Solve the problem following this plan: {plan}. Problem: {problem}")
+    
+    # Extract
+    final_answer = llm(f"Extract exactly the final answer from this text: {solution}. Return ONLY the answer.")
+    
+    return final_answer
+
 @bundle(trainable=True)
 def solution_workflow(problem: str) -> str:
     var_1 = llm(f"solve the given input {problem}")

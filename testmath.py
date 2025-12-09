@@ -39,47 +39,56 @@ llm_client = LLMClient(model=model)
 def llm(prompt: str) -> str:
     return llm_client.answer(prompt)
 
-
 @bundle(trainable=True)
 def solution_workflow(problem: str) -> str:
-    var_1 = llm(f"solve the given input {problem}")
-    var_2 = llm(f"do something with step 1 intermediate result {var_1}")
-    var_3 = llm(f"do something with step 2 intermediate result {var_2}")
-    var_4 = llm(f"output final answer from previous results {var_1}, {var_2}, {var_3}")
-    return var_4
+    """
+    Solves a math problem and extracts the answer.
+    """
+    # Plan
+    plan = llm(f"Create a step-by-step plan to solve: {problem}")
+    
+    # Execute
+    solution = llm(f"Solve the problem following this plan: {plan}. Problem: {problem}")
+    
+    # Extract
+    final_answer = llm(f"Extract exactly the final answer from this text: {solution}. Return ONLY the answer.")
+    
+    return final_answer
 
 META_PROMPTS = """
-You are editing Python code that defines an LLM-based solution workflow.
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
 
-Goal:
-- Transform the function into a robust, general-purpose solver for many unseen problems, not just the given training examples.
+Your goal is to modify the code to maximize accuracy on unseen test cases.
 
-LLM steps:
-- You may create multiple intermediate LLM calls as needed by using:
-      s1 = llm(f"... prompt with input {{var}} ...")
-- Store each call’s result in variables (e.g., s1, s2, s3, plan, check) and pass them into later steps.
-- Encourage explicit reasoning: plan → reason → verify → finalize.
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
 
-Allowed edits:
-- STRUCTURAL: split a large `llm(...)` call into smaller steps; merge redundant steps; add planning, checking, or repair steps.
-- Hint: you can try multiple steps in parallel, or plan then solve, or check then revise answer, or breakdown into smaller steps.
-- Note: different prompt will provide different effects. e.g. Chain-of-thought: "let's think step by step" can provide grounded reasoning.
-- PYTHON LOGIC: add helper functions, loops, conditionals, or data structures if they clarify or stabilize the workflow.
-- PROMPTS: rewrite prompts to be concrete and structured, with clear input/output expectations.
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `\boxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
 
-Error handling:
-- Distinguish syntax errors (code does not run) from reasoning errors (bad logic or incorrect answers).
-- Fix both: ensure valid Python and improve the reasoning process.
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
 
-Constraints:
-- NEVER hard-code answers or patterns tied to specific training questions.
-- Do NOT overfit; design a general workflow that can handle new inputs.
-- Keep the function readable and maintainable.
-
-Output:
-- Return the full, updated function source code.
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
 """
-
 
 def get_feedback(problem: str, gold: str, pred: str) -> str:
     gold_str = gold.strip()
