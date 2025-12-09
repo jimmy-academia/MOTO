@@ -115,10 +115,10 @@ def concat(*items):
 
 def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
     optimizer = OptoPrime(solution_workflow.parameters())
-    MATH_EXAMPLES = MATH_EXAMPLES[:35]
+    MATH_EXAMPLES = MATH_EXAMPLES[:10]
     n = len(MATH_EXAMPLES)
     train_samples = MATH_EXAMPLES[:]
-    batch_size = 1
+    batch_size = 2
     for epoch in range(epochs):
         log(f"\n=== Epoch {epoch} ===")
 
