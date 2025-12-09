@@ -3,7 +3,7 @@ import setuptools
 
 here = os.path.abspath(os.path.dirname(__file__))
 version = {}
-with open(os.path.join(here, "opto/version.py"), encoding="utf8") as fp:
+with open(os.path.join(here, "myopto/version.py"), encoding="utf8") as fp:
     exec(fp.read(), version)
 __version__ = version["__version__"]
 
@@ -17,7 +17,7 @@ install_requires = [
 ]
 
 setuptools.setup(
-    name="trace-opt",
+    name="jytrace-opt",
     version=__version__,
     author="Trace Team",
     author_email="chinganc@microsoft.com",
@@ -25,7 +25,7 @@ setuptools.setup(
     license='MIT LICENSE',
     description="An AutoDiff-like tool for training AI systems end-to-end with general feedback",
     long_description=open('README.md', encoding="utf8").read(),
-    packages=setuptools.find_packages(include=["opto*"]),
+    packages=setuptools.find_packages(include=["myopto*"]),
     install_requires=install_requires,
     python_requires=">=3.9",
 )

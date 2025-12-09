@@ -2,6 +2,7 @@ import os
 from llm import get_key, LLMClient
 from utils import writef, Logger
 import argparse
+from datetime import datetime
 
 # global logger instance
 log = Logger()
@@ -90,20 +91,55 @@ Analyze the "Expected" vs "Got" values in the error log above:
 Return **only** the full, updated Python source code for `solution_workflow`.
 """
 
+def normalize_answer(s: str) -> str:
+    """Aggressively normalize math strings for comparison."""
+    # Lowercase and strip whitespace
+    s = str(s).strip().lower()
+    # Remove LaTeX commands, boxing, and common units
+    s = s.replace(r"\text", "").replace(r"\%", "").replace("%", "")
+    s = s.replace("$", "").replace(r"\(", "").replace(r"\)", "")
+    s = s.replace(r"\boxed", "").replace("{", "").replace("}", "")
+    s = s.replace("square units", "").replace("feet", "").replace("degrees", "").replace("º", "")
+    # Remove all whitespace
+    s = "".join(s.split())
+    return s
+
+def math_equal(pred: str, gold: str) -> bool:
+    """Check if two answers are essentially the same."""
+    # 1. Exact match
+    if pred == gold: return True
+    
+    # 2. Normalized match
+    norm_pred = normalize_answer(pred)
+    norm_gold = normalize_answer(gold)
+    if norm_pred == norm_gold: return True
+    
+    # 3. Numeric float match (handles 1/2 vs 0.5)
+    try:
+        if abs(float(norm_pred) - float(norm_gold)) < 1e-4:
+            return True
+    except ValueError:
+        pass
+        
+    return False
+
 def get_feedback(problem: str, gold: str, pred: str) -> str:
-    gold_str = gold.strip()
-    pred_str = pred.strip()
-    if pred_str == gold_str:
+    if math_equal(pred, gold):
         return f"test case passed! (Problem: {problem})"
-    else:
-        return (
-            "test case failed.\n"
-            f"Problem: {problem}\n"
-            f"Expected final answer: {gold_str}\n"
-            f"Got: {pred_str}\n"
-            "Please improve the body of `solution_workflow` so that it produces precisely the expected final answer"
-            f"{META_PROMPTS}"
-        )
+    
+    # improved feedback signal
+    return (
+        "Test Case Failed.\n"
+        f"Problem: {problem}\n"
+        f"Expected: {gold}\n"
+        f"Got: {pred}\n\n"
+        "DIAGNOSIS:\n"
+        "1. If the numbers match but format differs, adjust the extraction logic.\n"
+        "2. If the numbers are different, the reasoning is flawed.\n"
+        f"{META_PROMPTS}"
+    )
+
+
 
 @bundle(trainable=False)
 def concat(*items):
@@ -216,7 +252,8 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
         final_src = solution_workflow.parameters()[0].data
         writef(f"output/{model}_math_solver.py", final_src)
         log("Saved optimized solver to math_solver.py")
-        log.saveto(f"output/{model}_log")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log.saveto(f"output/{model}_log_{ts}.txt")
     return solution_workflow
 
 

@@ -1,3 +1,17 @@
+def get_feedback(problem: str, gold: str, pred: str) -> str:
+    gold_str = gold.strip()
+    pred_str = pred.strip()
+    if pred_str == gold_str:
+        return f"test case passed! (Problem: {problem})"
+    else:
+        return (
+            "test case failed.\n"
+            f"Problem: {problem}\n"
+            f"Expected final answer: {gold_str}\n"
+            f"Got: {pred_str}\n"
+            "Please improve the body of `solution_workflow` so that it produces precisely the expected final answer"
+            f"{META_PROMPTS}"
+        )
 META_PROMPTS = """
 You are an expert LLM Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
 
