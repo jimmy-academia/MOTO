@@ -25,7 +25,8 @@ from tqdm import tqdm
 
 from data import MATH_EXAMPLES, MATH_TEST
 
-MATH_TEST = MATH_TEST[:50]
+MATH_EXAMPLES = MATH_EXAMPLES[:10]
+MATH_TEST = MATH_TEST[:10]
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", type=int, default=4, help="Which model to use for llm() execution.",)
 args = parser.parse_args()
@@ -151,7 +152,6 @@ def train_math(MATH_EXAMPLES, epochs: int = 3, batch_size: int = 7):
     test_acc = evaluate_math(solution_workflow, MATH_TEST, name="MATH_TEST")
     log(f"Initial test accuracy: {test_acc:.3f}")
     optimizer = OptoPrime(solution_workflow.parameters())
-    MATH_EXAMPLES = MATH_EXAMPLES[:10]
     n = len(MATH_EXAMPLES)
     train_samples = MATH_EXAMPLES[:]
     batch_size = 2
