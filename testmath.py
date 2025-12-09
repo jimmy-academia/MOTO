@@ -63,6 +63,7 @@ LLM steps:
 Allowed edits:
 - STRUCTURAL: split a large `llm(...)` call into smaller steps; merge redundant steps; add planning, checking, or repair steps.
 - Hint: you can try multiple steps in parallel, or plan then solve, or check then revise answer, or breakdown into smaller steps.
+- Note: different prompt will provide different effects. e.g. Chain-of-thought: "let's think step by step" can provide grounded reasoning.
 - PYTHON LOGIC: add helper functions, loops, conditionals, or data structures if they clarify or stabilize the workflow.
 - PROMPTS: rewrite prompts to be concrete and structured, with clear input/output expectations.
 
@@ -119,7 +120,6 @@ def train_math(MATH_EXAMPLES, epochs: int = 2, batch_size: int = 7):
         fail_samples = []
         # one tqdm bar per epoch
         with tqdm(total=n, ncols=88, desc=f"Epoch {epoch}", leave=True) as pbar:
-
 
             while end != n:
                 end = min(start + batch_size, n)
