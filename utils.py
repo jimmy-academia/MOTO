@@ -80,7 +80,7 @@ class Logger:
         self.buffer = []
         self.enabled = True
 
-    def __call__(self, *args, sep=" ", end="\n", file=None, flush=False):
+    def __call__(self, *args, sep=" ", end="\n", file=None, flush=False, say=True):
         """
         Drop-in replacement for print:
         - prints to stdout
@@ -88,7 +88,8 @@ class Logger:
         """
         msg = sep.join(str(a) for a in args)
         # print normally
-        print(msg, sep=sep, end=end, file=file, flush=flush)
+        if say:
+            print(msg, sep=sep, end=end, file=file, flush=flush)
         # and store
         if self.enabled:
             self.buffer.append(msg + ("" if end == "" else end))
