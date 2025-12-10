@@ -6,9 +6,12 @@ class BaseScheme(ABC):
         self.args = args
         self.model_name = args.scheme  # e.g. 'moto'
         self.benchmark = args.benchmark
-        self.output_dir = Path(f"{args.scheme}_{args.benchmark}")
-        self.scheme_file = self.output_dir/f"prompt"
-        self.result_file = self.output_dir/f"score.csv"
+
+        self.output_dir = Path(args.output_dir)
+        self.output_subdir = self.output_dir/f"{args.scheme}_{args.benchmark}"
+        self.output_subdir.mkdir(parents=True, exist_ok=True) 
+        self.scheme_file = self.output_subdir/f"prompt"
+        self.result_file = self.output_subdir/f"score.csv"
 
     @abstractmethod
     async def train(self, train_benchmark, train_indices, val_benchmark=None, val_indices=None):

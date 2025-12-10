@@ -99,7 +99,7 @@ class MotoScheme(BaseScheme):
     def __init__(self, args):
         super().__init__(args)
         self.optimizer = OptoPrime(solution_workflow.parameters())
-        self.scheme_file = self.output_dir/f"code.py"
+        self.scheme_file = self.scheme_file.with_name("code.py")
 
     # [THE FIX] The benchmark calls 'await graph(input)'. 
     # We must provide an async function that returns (answer_str, cost_float).
@@ -174,7 +174,7 @@ class MotoScheme(BaseScheme):
             
     def save_model(self, epoch=None):
         code = solution_workflow.parameters()[0].data
-        path = Path(self.args.output_dir) / self.scheme_file
+        path = self.scheme_file
         if epoch is not None:
             writef(path.with_name(f"{path.name}.{epoch}"), code)
         writef(path, code)
