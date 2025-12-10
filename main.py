@@ -93,7 +93,7 @@ def main():
     args = parser.parse_args()
 
     args.opt_model = 'gpt-5'
-    args.train_limit = 5
+    args.train_limit = 20
     args.test_limit = 100
     args.batch_size = 5
     args.epochs = 10
