@@ -24,7 +24,6 @@ from utils import writef
 llm_client = LLMClient(model="gpt-4o-mini") 
 
 def llm(prompt: str) -> str:
-    print('llm called')
     return llm_client.answer(prompt)
 
 @bundle(trainable=True)

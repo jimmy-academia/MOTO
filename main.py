@@ -59,7 +59,7 @@ async def run_main(args):
 
     if args.train or not os.path.exists(scheme_file):
         logger.info(f"--- 🚀 Starting Training: {args.scheme} on {args.benchmark} ---")
-        await scheme.train(train_benchmark=train_bench, train_indices=train_indices, test_benchmark=test_bench, test_indices=test_indices[:5])
+        await scheme.train(train_benchmark=train_bench, train_indices=train_indices, test_benchmark=test_bench, test_indices=test_indices[:20])
     else:
         logger.info(f"--- ✅ Scheme Found: {scheme_file} (Skipping Train) ---")
         scheme.load(scheme_file)
