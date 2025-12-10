@@ -1,3 +1,5 @@
+#benchmarks/benchmark.py
+
 import asyncio
 import json
 import os
@@ -12,7 +14,6 @@ from tqdm.asyncio import tqdm_asyncio
 
 from utils.logs import logger
 from utils.common import write_json_file
-
 
 class BaseBenchmark(ABC):
     def __init__(self, name: str, file_path: str, log_path: str):
@@ -92,7 +93,7 @@ class BaseBenchmark(ABC):
                 return await self.evaluate_problem(problem, agent)
 
         tasks = [sem_evaluate(problem) for problem in data]
-        return await tqdm_asyncio.gather(*tasks, desc=f"Evaluating {self.name} problems", total=len(data))
+        return await tqdm_asyncio.gather(*tasks, desc=f"Evaluating {self.name} problems", total=len(data), ncols=88)
 
     async def run_evaluation(self, agent: Callable, va_list: List[int], max_concurrent_tasks: int = 50):
         data = await self.load_data(va_list)
