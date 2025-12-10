@@ -18,7 +18,7 @@ from utils.logs import logger
 # --- 1. The Agent (Synchronous Bundle) ---
 llm_client = LLMClient(model="gpt-4o-mini") 
 
-def llm_call(prompt: str) -> str:
+def llm(prompt: str) -> str:
     return llm_client.answer(prompt)
 
 @bundle(trainable=True)
