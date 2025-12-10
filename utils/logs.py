@@ -36,7 +36,7 @@ class SimpleLogger:
     
     def __init__(
         self, 
-        name: str = "AFlow",
+        name: str = "moto_experiments",
         log_level: Union[int, LogLevel] = LogLevel.INFO,
         log_file: Optional[str] = None,
         log_dir: str = "logs",
