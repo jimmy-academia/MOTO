@@ -82,7 +82,7 @@ class SimpleLogger:
         formatted_msg = f"{timestamp} - {level_name} - {message}"
         
         # Write to console if enabled
-        if self.console_output and level.value[0] < self.log_level::
+        if self.console_output and level.value[0] < self.log_level:
             color = level.value[1]
             # Add bold to critical messages
             if level == LogLevel.CRITICAL:
