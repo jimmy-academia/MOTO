@@ -25,7 +25,7 @@ class Colors:
 
 class LogLevel(Enum):
     """Log levels with corresponding colors"""
-    DEBUG = (10, Colors.BLUE)
+    DEBUG = (10, Colors.CYAN)
     INFO = (20, Colors.GREEN)
     WARNING = (30, Colors.YELLOW)
     ERROR = (40, Colors.RED)
