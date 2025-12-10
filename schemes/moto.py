@@ -78,11 +78,11 @@ class MotoScheme(BaseScheme):
         train_data = await train_benchmark.load_data(specific_indices=train_indices)
         logger.info(f"Loaded {len(train_data)} training examples.")
 
-        for epoch in range(self.args.epochs):
-            logger.info(f"\n--- Epoch {epoch+1}/{self.args.epochs} ---")
+        for epoch in range(1, self.args.epochs+1):
+            logger.info(f"\n--- Epoch {epoch}/{self.args.epochs} ---")
 
             # Optional: Test during training
-            if test_benchmark and test_indices and epoch % self.args.val_interval == 0:
+            if test_benchmark and test_indices and (epoch -1) % self.args.val_interval == 0:
                 logger.info(f"Running Mid-Training Validation on epoch {epoch}..")
                 self.prep_test()
                 await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
@@ -98,7 +98,7 @@ class MotoScheme(BaseScheme):
                 outputs = []
                 feedbacks = []
                 
-                desc = f"Processing Batch {i//batch_size + 1}/{len(train_data)//batch_size + 1}"
+                desc = f"Processing Batch {i//batch_size + 1}/{(len(train_data) - 1) // batch_size + 1}"
                 for example in tqdm(batch, ncols=88, desc=desc):
                     problem = example[train_benchmark.q_key]
                     gold = example[train_benchmark.a_key]
@@ -136,17 +136,22 @@ class MotoScheme(BaseScheme):
 
     async def inference(self, input_text: str) -> tuple[str, float]:
         token = request_cost.set(0.0)
+
         def _run_free():
             result = self._free_solution(input_text)
-            return str(result)
+            total = request_cost.get()
+            return str(result), total
+
         try:
-            prediction_str = await asyncio.to_thread(_run_free)
-            total_cost = request_cost.get()
+            # Get both prediction and cost from the worker thread
+            prediction_str, total_cost = await asyncio.to_thread(_run_free)
             return prediction_str, total_cost
         except Exception as e:
             return f"Error: {str(e)}", 0.0
         finally:
+            # Restore previous ContextVar state for this async task
             request_cost.reset(token)
+
 
     def save_model(self, epoch=None):
         code = solution_workflow.parameters()[0].data

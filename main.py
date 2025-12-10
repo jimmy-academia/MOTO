@@ -91,13 +91,15 @@ async def run_main(args):
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    logger.info(f" --- 🤖 Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
 
-    args.train_limit = 20
+    args.opt_model = 'gpt-5'
+    args.train_limit = 5
     args.test_limit = 100
     args.batch_size = 5
     args.epochs = 10
     args.val_interval = 1
+
+    logger.info(f" --- 🤖 Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
     logger.debug("Arguments:\n" + good_json_dump(vars(args)))
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"

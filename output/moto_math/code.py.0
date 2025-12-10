@@ -1,0 +1,180 @@
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # 1) Create a plan
+    plan_prompt = (
+        "Create a concise step-by-step plan to solve the following math problem. "
+        "Be explicit about key steps and what final quantity to compute.\n\nProblem: "
+        + problem
+    )
+    plan = llm(plan_prompt)
+
+    # 2) Solve following the plan
+    solve_prompt = (
+        "Using the following plan, solve the problem and give a clear final result. "
+        "Show only the minimal reasoning needed and the final answer clearly labeled.\n\nPlan: "
+        + plan
+        + "\n\nProblem: "
+        + problem
+    )
+    solution = llm(solve_prompt)
+
+    # 3) Ask the LLM to extract ONLY the final answer
+    extract_prompt = (
+        "Extract exactly and ONLY the final answer from the text below. "
+        "Return the answer in the most natural concise form (a plain number, a number with %, a number with units like 'feet' or 'cents', or a 3-component vector formatted as \\begin{pmatrix} a \\ b \\ c \\end{pmatrix}). "
+        "Do not include any explanation, whitespace-only lines, or extra characters.\n\n"
+        "Text:\n" + solution
+    )
+    extracted = llm(extract_prompt)
+
+    # Utility parsers
+    def parse_boxed(text: str):
+        m = re.search(r"\\boxed\{([^}]*)\}", text)
+        return m.group(1).strip() if m else None
+
+    def parse_pmatrix(text: str):
+        # support various forms: \begin{pmatrix} a \\ b \\ c \end{pmatrix} or LaTeX with parentheses
+        m = re.search(r"\\begin\{pmatrix\}(.+?)\\end\{pmatrix\}", text, re.S)
+        if not m:
+            # try inline parentheses form like (a, b, c) or [a; b; c]
+            m2 = re.search(
+                r"\(\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*,\s*([+-]?\d+)\s*\)", text
+            )
+            if m2:
+                a, b, c = m2.groups()
+                return f"\\begin{{pmatrix}} {a} \\ {b} \\ {c} \\end{{pmatrix}}"
+            return None
+        content = m.group(1)
+        # extract numbers separated by \\ or newlines or &
+        parts = re.split(r"\\\\|\\\\n|&|\\\\r?\\n", content)
+        nums = []
+        for p in parts:
+            p = p.strip()
+            if not p:
+                continue
+            # remove any LaTeX commands
+            p = re.sub(r"[^0-9+\-\s]+", "", p)
+            if p:
+                # take first integer in p
+                mnum = re.search(r"([+-]?\d+)", p)
+                if mnum:
+                    nums.append(mnum.group(1))
+        if len(nums) == 3:
+            a, b, c = nums
+            # normalize: make integers and reduce gcd later if needed by the grader
+            return f"\\begin{{pmatrix}} {a} \\ {b} \\ {c} \\end{{pmatrix}}"
+        return None
+
+    def parse_percent(text: str):
+        m = re.search(r"([+-]?\d+(?:\.\d+)?)\s*%", text)
+        if m:
+            # return with percent sign, remove trailing .0 if integer
+            num = m.group(1)
+            if re.match(r"^-?\d+\.0$", num):
+                num = str(int(float(num)))
+            return num + "%"
+        return None
+
+    def parse_number_with_unit(text: str):
+        # capture patterns like '52 feet', '90 cents', '28%'
+        m = re.search(
+            r"([+-]?\d+(?:\.\d+)?)(?:\s*)(feet|foot|ft|cents|cent|\$|dollars?)\b",
+            text,
+            re.I,
+        )
+        if m:
+            num = m.group(1)
+            unit = m.group(2).lower()
+            # normalize unit names
+            if unit in ("foot", "feet", "ft"):
+                unit = "feet"
+            elif unit.startswith("cent"):
+                unit = "cents"
+            elif unit.startswith("$") or unit.startswith("dollar"):
+                unit = "dollars"
+            # trim .0
+            if re.match(r"^-?\d+\.0$", num):
+                num = str(int(float(num)))
+            return f"{num} {unit}"
+        return None
+
+    def parse_plain_number(text: str):
+        # prefer integers when possible
+        m = re.search(r"([+-]?\d+)(?![\d\.]*%)", text)
+        if m:
+            return m.group(1)
+        # fallback to decimal
+        m2 = re.search(r"([+-]?\d+\.\d+)", text)
+        if m2:
+            # trim trailing zeros
+            v = float(m2.group(1))
+            if v.is_integer():
+                return str(int(v))
+            return str(v)
+        return None
+
+    def normalize_answer(text: str):
+        if not text or not text.strip():
+            return None
+        text = text.strip()
+        # Try boxed
+        v = parse_boxed(text)
+        if v:
+            return v
+        # Try pmatrix
+        v = parse_pmatrix(text)
+        if v:
+            return v
+        # percent
+        v = parse_percent(text)
+        if v:
+            return v
+        # number with unit
+        v = parse_number_with_unit(text)
+        if v:
+            return v
+        # plain number
+        v = parse_plain_number(text)
+        if v:
+            return v
+        # If nothing matched, return stripped text if short
+        if len(text) < 60:
+            return text
+        return None
+
+    # Try to normalize the LLM-extracted answer first
+    final = normalize_answer(extracted)
+
+    # If not successful, try to parse the raw solution produced by the LLM
+    if final is None:
+        final = normalize_answer(solution)
+
+    # If still not successful, ask the LLM again to return ONLY the final answer (retry)
+    retries = 0
+    while final is None and retries < 2:
+        retries += 1
+        retry_prompt = (
+            "The following is a solution to a math problem. RETURN ONLY the final answer, and NOTHING ELSE. "
+            "If the final answer is a vector of three integers, return it in this exact LaTeX form: \\begin{pmatrix} a \\ b \\ c \\end{pmatrix}. "
+            "If it is a percentage include the % sign (e.g., 28%). If it is a number with units, include the unit (e.g., 52 feet).\n\nSolution:\n"
+            + solution
+        )
+        extracted2 = llm(retry_prompt)
+        final = normalize_answer(extracted2)
+        if final is None:
+            # as a last fallback, try to extract boxed content from extracted2
+            b = parse_boxed(extracted2)
+            if b:
+                final = b
+
+    # Final fallback: return the extracted text trimmed
+    if final is None:
+        final = (
+            extracted.strip() if extracted and extracted.strip() else solution.strip()
+        )
+
+    return final
