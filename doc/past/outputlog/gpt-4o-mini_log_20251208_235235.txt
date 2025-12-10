@@ -1,0 +1,2028 @@
+optimizing with gpt-5-mini
+executing with gpt-4o-mini
+
+=== Epoch 0 ===
+test case passed! (Problem: A particular convex pentagon has two congruent, acute angles. The measure of each of the other interior angles is equal to the sum of the measures of the two acute angles. What is the common measure of the large angles, in degrees?)
+correct!
+test case passed! (Problem: Below is a magic square, meaning that the sum of the numbers in each row, in each column, and in each of the $2$ main diagonals are equal. What is the value of $n$?
+
+[asy]size(125);
+for(int i = 0; i<4; ++i)
+{
+
+draw((0,i)--(3,i),linewidth(1));
+}
+
+for(int j = 0; j<4; ++j)
+{
+
+draw((j,0)--(j,3),linewidth(1));
+}
+
+label("$n-3$",(.5,.5));
+label("3",(.5,1.5));
+label("$n+1$",(.5,2.5));
+
+label("$n+2$",(1.5,.5));
+label("$2n-9$",(1.5,1.5));
+label("$1$",(1.5,2.5));
+
+label("$2$",(2.5,.5));
+label("$n$",(2.5,1.5));
+label("$n-1$",(2.5,2.5));
+[/asy])
+correct!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    # Plan
+    plan = llm(f"Create a step-by-step plan to solve: {problem}")
+    
+    # Execute
+    solution = llm(f"Solve the problem following this plan: {plan}. Problem: {problem}")
+    
+    # Extract
+    final_answer = llm(f"Extract exactly the final answer from this text: {solution}. Return ONLY the answer.")
+    
+    return final_answer
+------------------------------------------------------------
+Test Case Failed.
+Problem: Each good worker can paint my new house alone in 12 hours.  Each bad worker can paint my house alone in 36 hours.  I need my house painted in 3 hours.  If I can only find 3 good workers, how many bad workers must I also find in order to have my house painted on time?
+Expected: 3
+Got: 3 bad workers
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+Test Case Failed.
+Problem: Let A = 1, B = 2, C = 3, ..., Z = 26. The product value of a word is equal to the product of the values of its letters. For example, CAB has a product value of 3 $\times$ 1 $\times$ 2 = 6. What common English word has a product value of 715? It does not have to be of length 3.
+Expected: \text{MAKE
+Got: MEGA
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise step-by-step plan to solve the following problem. "
+        f"Problem: {problem}"
+    )
+    plan = llm(plan_prompt)
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    solve_prompt = (
+        "You are a careful math expert. Follow the plan exactly and solve the problem. Show your work concisely, "
+        "but put ONLY the final answer inside <ANSWER> and </ANSWER> tags. "
+        "If the final answer is a number, include only the number inside the tags (no units or extra words). "
+        "If it is a word, include only the word (prefer the common English word if requested).\n"
+        f"Plan: {plan}\nProblem: {problem}"
+    )
+    solution = llm(solve_prompt)
+
+    # 3) Verify: ask a second LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Check the previous solution for correctness and consistency with the problem. "
+        "Recompute if needed. Output the final answer INSIDE <ANSWER> and </ANSWER> tags only. "
+        "Outside the tags you may (optionally) provide a one-line note, but the answer in tags must be exact and minimal.\n"
+        f"Problem: {problem}\nSolution text: {solution}"
+    )
+    verification = llm(verify_prompt)
+
+    # 4) Sanitize / Extract: prefer the verifier's tagged answer, fallback to solver's tagged answer, else use regex heuristics
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        m = re.search(r"<ANSWER>\s*(.*?)\s*</ANSWER>", text, re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # Fallback 1: if still empty, try to find the first standalone number in verification then solution
+    if not final_answer:
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            m_num = re.search(r"([-+]?\d+)(?:\.\d+)?", txt)
+            if m_num:
+                final_answer = m_num.group(1)
+                break
+            # try to find an uppercase word (likely a word-answer like MAKE)
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Fallback 2: if final_answer contains extra words like '3 bad workers', extract the numeric token
+    if final_answer:
+        # If contains a number anywhere, prefer the number alone
+        m_num_only = re.search(r"([-+]?\d+)(?:\.\d+)?", final_answer)
+        if m_num_only:
+            final_answer = m_num_only.group(1)
+        else:
+            # Trim whitespace and remove surrounding punctuation
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Final safety: if still empty, return a short fallback indicating inability to extract
+    if not final_answer:
+        # As a last resort, return the full verifier text truncated to 200 chars (so caller can inspect)
+        final_answer = (verification or solution or "").strip()[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+Test Case Failed.
+Problem: Estimate $14.7923412^2$ to the nearest hundred.
+Expected: 200
+Got: 300
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+Test Case Failed.
+Problem: A square piece of paper is folded once so that one pair of opposite corners coincide. When the paper is unfolded, two congruent triangles have been formed. Given that the area of the original square is $49$ square inches, what is the number of inches in the perimeter of one of these triangles? Express your answer in simplest radical form.
+Expected: 14+7\sqrt{2
+Got: 14
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise step-by-step plan to solve the following problem. "
+        f"Problem: {problem}"
+    )
+    plan = llm(plan_prompt)
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    solve_prompt = (
+        "You are a careful math expert. Follow the plan exactly and solve the problem. Show your work concisely, "
+        "but put ONLY the final answer inside <ANSWER> and </ANSWER> tags. "
+        "If the final answer is a number, include only the number inside the tags (no units or extra words). "
+        "If it is a word, include only the word (prefer the common English word if requested).\n"
+        f"Plan: {plan}\nProblem: {problem}"
+    )
+    solution = llm(solve_prompt)
+
+    # 3) Verify: ask a second LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Check the previous solution for correctness and consistency with the problem. "
+        "Recompute if needed. Output the final answer INSIDE <ANSWER> and </ANSWER> tags only. "
+        "Outside the tags you may (optionally) provide a one-line note, but the answer in tags must be exact and minimal.\n"
+        f"Problem: {problem}\nSolution text: {solution}"
+    )
+    verification = llm(verify_prompt)
+
+    # 4) Sanitize / Extract: prefer the verifier's tagged answer, fallback to solver's tagged answer, else use regex heuristics
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        m = re.search(r"<ANSWER>\s*(.*?)\s*</ANSWER>", text, re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # Fallback 1: if still empty, try to find the first standalone number in verification then solution
+    if not final_answer:
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            m_num = re.search(r"([-+]?\d+)(?:\.\d+)?", txt)
+            if m_num:
+                final_answer = m_num.group(1)
+                break
+            # try to find an uppercase word (likely a word-answer like MAKE)
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Fallback 2: if final_answer contains extra words like '3 bad workers', extract the numeric token
+    if final_answer:
+        # If contains a number anywhere, prefer the number alone
+        m_num_only = re.search(r"([-+]?\d+)(?:\.\d+)?", final_answer)
+        if m_num_only:
+            final_answer = m_num_only.group(1)
+        else:
+            # Trim whitespace and remove surrounding punctuation
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Final safety: if still empty, return a short fallback indicating inability to extract
+    if not final_answer:
+        # As a last resort, return the full verifier text truncated to 200 chars (so caller can inspect)
+        final_answer = (verification or solution or "").strip()[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+Test Case Failed.
+Problem: At the national curling championships, there are three teams of four players each. After the championships are over, the very courteous participants each shake hands three times with every member of the opposing teams, and once with each member of their own team.
+
+How many handshakes are there in total?
+Expected: 162
+Got: 114
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+test case passed! (Problem: The expression $2\cdot 3 \cdot 4\cdot 5+1$ is equal to 121, since multiplication is carried out before addition. However, we can obtain values other than 121 for this expression if we are allowed to change it by inserting parentheses. For example, we can obtain 144 by writing \[
+(2\cdot (3\cdot 4)) \cdot (5+1) = 144.
+\]In total, how many values can be obtained from the expression $2\cdot 3\cdot 4 \cdot 5 + 1$ by inserting parentheses? (Note that rearranging terms is not allowed, only inserting parentheses).)
+correct!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+test case passed! (Problem: Tom got a Mr. Potato Head for his birthday. It came with 3 hairstyles, 2 sets of eyebrows, 1 pair of googly eyes, 2 sets of ears, and 2 sets of lips, a pair of regular shoes, and a bonus pair of clown shoes. If a complete Mr. Potato Head personality includes eyebrows, eyes, ears, lips, shoes and optionally hair, how many different wacky personalities can Tom come up with? Note that Mr. Potato Head can be bald.
+
+Note: You cannot "mix and match".  For example, you cannot take the left eyebrow from one pair and the right eyebrow from the other pair.)
+correct!
+test case passed! (Problem: How many whole numbers between 99 and 999 contain exactly one 0?)
+correct!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+Epoch 0 accuracy: 5/10 = 0.500
+Saved optimized solver to math_solver.py
+
+=== Epoch 1 ===
+test case passed! (Problem: A particular convex pentagon has two congruent, acute angles. The measure of each of the other interior angles is equal to the sum of the measures of the two acute angles. What is the common measure of the large angles, in degrees?)
+correct!
+test case passed! (Problem: Below is a magic square, meaning that the sum of the numbers in each row, in each column, and in each of the $2$ main diagonals are equal. What is the value of $n$?
+
+[asy]size(125);
+for(int i = 0; i<4; ++i)
+{
+
+draw((0,i)--(3,i),linewidth(1));
+}
+
+for(int j = 0; j<4; ++j)
+{
+
+draw((j,0)--(j,3),linewidth(1));
+}
+
+label("$n-3$",(.5,.5));
+label("3",(.5,1.5));
+label("$n+1$",(.5,2.5));
+
+label("$n+2$",(1.5,.5));
+label("$2n-9$",(1.5,1.5));
+label("$1$",(1.5,2.5));
+
+label("$2$",(2.5,.5));
+label("$n$",(2.5,1.5));
+label("$n-1$",(2.5,2.5));
+[/asy])
+correct!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+test case passed! (Problem: Each good worker can paint my new house alone in 12 hours.  Each bad worker can paint my house alone in 36 hours.  I need my house painted in 3 hours.  If I can only find 3 good workers, how many bad workers must I also find in order to have my house painted on time?)
+correct!
+Test Case Failed.
+Problem: Let A = 1, B = 2, C = 3, ..., Z = 26. The product value of a word is equal to the product of the values of its letters. For example, CAB has a product value of 3 $\times$ 1 $\times$ 2 = 6. What common English word has a product value of 715? It does not have to be of length 3.
+Expected: \text{MAKE
+Got: MEET
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+test case passed! (Problem: Estimate $14.7923412^2$ to the nearest hundred.)
+correct!
+Test Case Failed.
+Problem: A square piece of paper is folded once so that one pair of opposite corners coincide. When the paper is unfolded, two congruent triangles have been formed. Given that the area of the original square is $49$ square inches, what is the number of inches in the perimeter of one of these triangles? Express your answer in simplest radical form.
+Expected: 14+7\sqrt{2
+Got: 14
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+Test Case Failed.
+Problem: At the national curling championships, there are three teams of four players each. After the championships are over, the very courteous participants each shake hands three times with every member of the opposing teams, and once with each member of their own team.
+
+How many handshakes are there in total?
+Expected: 162
+Got: 324
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+Test Case Failed.
+Problem: The expression $2\cdot 3 \cdot 4\cdot 5+1$ is equal to 121, since multiplication is carried out before addition. However, we can obtain values other than 121 for this expression if we are allowed to change it by inserting parentheses. For example, we can obtain 144 by writing \[
+(2\cdot (3\cdot 4)) \cdot (5+1) = 144.
+\]In total, how many values can be obtained from the expression $2\cdot 3\cdot 4 \cdot 5 + 1$ by inserting parentheses? (Note that rearranging terms is not allowed, only inserting parentheses).
+Expected: 4
+Got: 1
+
+DIAGNOSIS:
+1. If the numbers match but format differs, adjust the extraction logic.
+2. If the numbers are different, the reasoning is flawed.
+
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `oxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+
+incorrect!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+test case passed! (Problem: Tom got a Mr. Potato Head for his birthday. It came with 3 hairstyles, 2 sets of eyebrows, 1 pair of googly eyes, 2 sets of ears, and 2 sets of lips, a pair of regular shoes, and a bonus pair of clown shoes. If a complete Mr. Potato Head personality includes eyebrows, eyes, ears, lips, shoes and optionally hair, how many different wacky personalities can Tom come up with? Note that Mr. Potato Head can be bald.
+
+Note: You cannot "mix and match".  For example, you cannot take the left eyebrow from one pair and the right eyebrow from the other pair.)
+correct!
+test case passed! (Problem: How many whole numbers between 99 and 999 contain exactly one 0?)
+correct!
+
+Updated solution_workflow source:
+
+def solution_workflow(problem: str) -> str:
+    """
+    Solves a math problem and extracts the answer.
+    """
+    import re
+
+    # Helper to robustly extract content inside <ANSWER> tags (case-insensitive)
+    def extract_tagged(text: str) -> str:
+        if not text:
+            return ""
+        # Allow variants like <ANSWER>...</ANSWER>, <answer>...</answer>
+        m = re.search(
+            r"<\s*ANSWER\s*>\s*(.*?)\s*<\s*/\s*ANSWER\s*>",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if m:
+            return m.group(1).strip()
+        return ""
+
+    # Helper to extract a canonical numeric token (handles commas)
+    def extract_number_token(text: str) -> str:
+        if not text:
+            return ""
+        # Find numbers with optional commas and optional decimal part
+        m = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)", text)
+        if m:
+            token = m.group(1)
+            # remove commas
+            token_clean = token.replace(",", "")
+            # If it's an integer value (no dot or dot followed by zeros), return integer form
+            try:
+                if "." in token_clean:
+                    f = float(token_clean)
+                    if abs(f - int(f)) < 1e-9:
+                        return str(int(f))
+                    return str(f)
+                else:
+                    return str(int(token_clean))
+            except Exception:
+                return token_clean
+        # Try uppercase word answers (e.g., MAKE)
+        m_word = re.search(r"\b([A-Z]{2,})\b", text)
+        if m_word:
+            return m_word.group(1)
+        return ""
+
+    # 1) Planning: ask the LLM to produce a concise step-by-step plan
+    plan_prompt = (
+        "You are a math expert. Create a clear, concise numbered step-by-step PLAN to solve the following problem. "
+        "Each step should be one short sentence describing the next operation (e.g., 'Compute number of pairs...'). "
+        f"Problem: {problem}"
+    )
+    try:
+        plan = llm(plan_prompt)
+    except Exception:
+        plan = ""
+
+    # 2) Solve: follow the plan and put the final answer inside explicit tags <ANSWER>...</ANSWER>
+    # Require brief but explicit arithmetic steps and intermediate counts where applicable.
+    solve_prompt = (
+        "You are a careful math expert. Follow the PLAN exactly and solve the problem. Provide concise step-by-step calculations (numbered or short lines) showing key intermediate arithmetic. "
+        "At the very end, output ONLY the final answer INSIDE <ANSWER> and </ANSWER> tags. If the final answer is a number, include only the number (no units or text) inside the tags."
+        f"\nPlan: {plan}\nProblem: {problem}"
+    )
+    try:
+        solution = llm(solve_prompt)
+    except Exception:
+        solution = ""
+
+    # 3) Verify: ask an independent LLM call to check the solution and return a corrected <ANSWER> if necessary
+    verify_prompt = (
+        "You are a verifier. Independently recompute the answer to the problem below. Show concise arithmetic steps and verify whether the previous solution is correct. "
+        "If you disagree, provide the corrected final answer. Output the final answer INSIDE <ANSWER> and </ANSWER> tags ONLY. Outside tags you may (optionally) provide a one-line rationale."
+        f"\nProblem: {problem}\nPrevious solution text: {solution}"
+    )
+    try:
+        verification = llm(verify_prompt)
+    except Exception:
+        verification = ""
+
+    # 4) If solver and verifier disagree or tags missing, ask a reconciler to adjudicate
+    def reconcile_if_needed(sol_text: str, ver_text: str) -> str:
+        # Extract tagged answers first
+        sol_tag = extract_tagged(sol_text)
+        ver_tag = extract_tagged(ver_text)
+
+        # If both present and identical (after canonical numeric normalization), prefer verifier but accept
+        def canonical(x: str) -> str:
+            if not x:
+                return ""
+            # try numeric normalization
+            num = extract_number_token(x)
+            return num or x.strip()
+
+        sol_c = canonical(sol_tag) if sol_tag else canonical(sol_text)
+        ver_c = canonical(ver_tag) if ver_tag else canonical(ver_text)
+
+        if sol_c and ver_c and sol_c == ver_c:
+            # agreement
+            return ver_c
+
+        # If verifier has a tagged answer, prefer it but if solver disagrees, ask reconciler for one final check
+        if ver_tag and sol_tag and ver_c != sol_c:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two independent solutions to the same problem are shown below. "
+                "Compare their arithmetic and recompute if necessary. Output only the final correct answer INSIDE <ANSWER> tags and nothing else. If one is clearly wrong, say nothing outside the tags.\n"
+                f"Problem: {problem}\nSolution A (solver): {sol_text}\nSolution B (verifier): {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+                # fallback: use verifier's canonical
+                return ver_c or ver_tag
+            except Exception:
+                return ver_c or ver_tag
+
+        # If only verifier provided a tag, use it
+        if ver_tag:
+            return canonical(ver_tag) or ver_tag
+        # If only solver provided a tag, use it
+        if sol_tag:
+            return canonical(sol_tag) or sol_tag
+
+        # If neither provided tags but numeric tokens exist, and they differ, ask reconciler
+        sol_num = extract_number_token(sol_text)
+        ver_num = extract_number_token(ver_text)
+        if sol_num and ver_num and sol_num != ver_num:
+            recon_prompt = (
+                "You are an impartial adjudicator. Two different numeric answers were produced. Recompute the problem and output only the correct final number INSIDE <ANSWER> tags.\n"
+                f"Problem: {problem}\nSolver output: {sol_text}\nVerifier output: {ver_text}"
+            )
+            try:
+                recon = llm(recon_prompt)
+                recon_tag = extract_tagged(recon)
+                if recon_tag:
+                    return canonical(recon_tag) or recon_tag
+            except Exception:
+                pass
+            # fallback to verifier numeric
+            return ver_num or sol_num
+
+        # If one numeric token exists, return it
+        if ver_num:
+            return ver_num
+        if sol_num:
+            return sol_num
+
+        # Nothing found
+        return ""
+
+    final_answer = extract_tagged(verification)
+    if not final_answer:
+        final_answer = extract_tagged(solution)
+
+    # If we have tags but they disagree, reconcile
+    final_answer = final_answer or reconcile_if_needed(solution, verification)
+
+    # If still empty, attempt fallback extraction heuristics
+    if not final_answer:
+        # Try to extract a number from verifier then solution
+        for txt in (verification, solution):
+            if not txt:
+                continue
+            num_tok = extract_number_token(txt)
+            if num_tok:
+                final_answer = num_tok
+                break
+            # uppercase word fallback
+            m_word = re.search(r"\b([A-Z]{2,})\b", txt)
+            if m_word:
+                final_answer = m_word.group(1)
+                break
+
+    # Final cleanup: if final_answer contains extra words like '3 bad workers', extract numeric token
+    if final_answer:
+        num_only = extract_number_token(final_answer)
+        if num_only:
+            final_answer = num_only
+        else:
+            final_answer = final_answer.strip().strip("\"'`.,;:")
+
+    # Last resort: return truncated verifier or solver text to help debugging
+    if not final_answer:
+        combined = (verification or solution or "").strip()
+        final_answer = combined[:200]
+
+    return final_answer
+
+------------------------------------------------------------
+Epoch 1 accuracy: 6/10 = 0.600
+Saved optimized solver to math_solver.py

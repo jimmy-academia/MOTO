@@ -11,7 +11,7 @@ import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
 from utils.logs import logger
-from scripts.utils.common import write_json_file
+from utils.common import write_json_file
 
 
 class BaseBenchmark(ABC):

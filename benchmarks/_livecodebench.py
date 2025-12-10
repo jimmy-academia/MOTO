@@ -23,7 +23,7 @@ import sys
 sys.path.append("..")
 sys.path.append("benchmarks")
 # ensure lcb_runner is installed
-from scripts.utils.lcb_runner import run_test
+from utils.lcb_runner import run_test
 
 # Key functions copied from LiveCodeBench official evaluation
 #sys.set_int_max_str_digits(50000)
