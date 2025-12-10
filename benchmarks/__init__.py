@@ -10,6 +10,39 @@ from .humaneval import HumanEvalBenchmark
 from .mbpp import MBPPBenchmark
 # Add other imports as needed (e.g., ._bbh, ._gpqa) if you want to support them
 
+DATASET_CONFIG = {
+    "math": {
+        "filename": "math", # Prefix for file names
+        "keys": {"q": "problem", "a": "solution"},
+        "extractor": "boxed"
+    },
+    "gsm8k": {
+        "filename": "gsm8k",
+        "keys": {"q": "question", "a": "answer"},
+        "extractor": "direct" 
+    },
+    "drop": {
+        "filename": "drop",
+        "keys": {"q": "context", "a": "completion"},
+        "extractor": "direct"
+    },
+    "hotpotqa": {
+        "filename": "hotpotqa",
+        "keys": {"q": "question", "a": "answer"},
+        "extractor": "direct"
+    },
+    "humaneval": {
+        "filename": "humaneval",
+        "keys": {"q": "prompt", "a": "canonical_solution"},
+        "extractor": "direct"
+    },
+    "mbpp": {
+        "filename": "mbpp",
+        "keys": {"q": "prompt", "a": "code"},
+        "extractor": "direct"
+    }
+}
+
 # Map dataset names to their corresponding classes
 BENCHMARK_REGISTRY = {
     "math": MATHBenchmark,
@@ -59,9 +92,14 @@ def get_benchmark(dataset_name: str, split: str = "test", data_dir: str = "data"
     
     # Create log directory if it doesn't exist
     os.makedirs(log_dir, exist_ok=True)
-    
-    return benchmark_cls(
+    benchmark = benchmark_cls(
         name=dataset_name,
         file_path=file_path,
         log_path=log_dir
     )
+
+    benchmark.q_key = DATASET_CONFIG[dataset_name]["keys"]["q"]
+    benchmark.a_key = DATASET_CONFIG[dataset_name]["keys"]["a"]
+    return benchmark
+
+

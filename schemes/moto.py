@@ -6,6 +6,10 @@ from llm import LLMClient
 
 from myopto.trace import bundle
 from myopto.optimizers import OptoPrime
+from myopto import trace
+
+# patch for parallel batch
+# https://docs.google.com/document/d/1Jk-GwRUlLyUYK4qpcQrMBhU8sgmg2WlOl0obf2Akhz0/edit?usp=sharing
 
 from .base import BaseScheme
 
@@ -19,10 +23,77 @@ def llm_call(prompt: str) -> str:
 
 @bundle(trainable=True)
 def solution_workflow(problem: str) -> str:
-    """The synchronous logic graph."""
-    plan = llm_call(f"Create a step-by-step plan to solve: {problem}")
-    solution = llm_call(f"Solve the problem following this plan: {plan}. Problem: {problem}")
-    return solution
+    """
+    Solves a math problem and extracts the answer.
+    """
+    # Plan
+    plan = llm(f"Create a step-by-step plan to solve: {problem}")
+    
+    # Execute
+    solution = llm(f"Solve the problem following this plan: {plan}. Problem: {problem}")
+    
+    # Extract
+    final_answer = llm(f"Extract exactly the final answer from this text: {solution}. Return ONLY the answer.")
+    
+    return final_answer
+
+META_PROMPTS = """
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `\boxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+"""
+
+def get_feedback_str(problem: str, gold: str, pred: str, is_correct: bool) -> str:
+    if is_correct:
+        return f"Test Case Passed! (Problem: {problem})"
+    
+    return (
+        "Test Case Failed.\n"
+        f"Problem: {problem}\n"
+        f"Expected: {gold}\n"
+        f"Got: {pred}\n\n"
+        "DIAGNOSIS:\n"
+        "1. If the numbers match but format differs, adjust the extraction logic.\n"
+        "2. If the numbers are different, the reasoning is flawed.\n"
+        f"{META_PROMPTS}"
+    )
+
+
+@bundle(trainable=False)
+def concat(*items):
+    out = ""
+    for i, item in enumerate(items):
+        out += f"ID {i}: {item}\n"
+    return out
 
 # --- 2. The Scheme Class ---
 class MotoScheme(BaseScheme):
@@ -64,34 +135,33 @@ class MotoScheme(BaseScheme):
                 feedbacks = []
                 
                 for example in batch:
+                    problem = example[train_benchmark.q_key]
+                    gold = example[train_benchmark.a_key]
                     try:
-                        # 1. Forward Pass (Trace Graph)
-                        prediction_node = solution_workflow(example['problem'])
+                        prediction_node = solution_workflow(problem)
                         prediction_str = prediction_node.data
-                        
-                        # 2. Score (Using Benchmark Logic)
-                        score, _ = train_benchmark.calculate_score(example['answer'], prediction_str)
-                        
-                        # 3. Generate Feedback
-                        if score == 1:
-                            fb = "Correct."
-                        else:
-                            fb = (f"Failed.\nProblem: {example['problem']}\n"
-                                  f"Expected: {example['answer']}\nGot: {prediction_str}")
-                            # Only optimize on failure? Or both? (Strategy dependent)
-                            outputs.append(prediction_node)
-                            feedbacks.append(fb)
-                            
-                    except Exception as e:
-                        logger.error(f"Error processing item: {e}")
+                        score, _ = train_benchmark.calculate_score(gold, pred_str)
+                        is_correct = (score == 1)
+                        if not is_correct:
+                            logger.info(f"Expected: {gold} | Got: {pred}")
+                        fb_text = get_feedback_str(problem, gold, pred_str, is_correct)
 
-                # 4. Backward Pass (Optimize)
-                if outputs:
-                    self.optimizer.zero_feedback()
-                    for node, fb in zip(outputs, feedbacks):
-                        self.optimizer.backward(node, fb)
-                    self.optimizer.step()
+                    except trace.ExecutionError as e:
+                        pred_node = e.exception_node
+                        fb = str(e.exception_node.data)
+
+                    logger.debug(fb)
+                    correctness = pred_node.eq(gold)
+                    outputs.append(correctness)
+                    feedbacks.append(fb)
                     
+                batched_outputs = concat(*outputs)      # MessageNode[str-ish]
+                batched_feedback = concat(*feedbacks)   # MessageNode[str]
+
+                self.optimizer.zero_feedback()
+                self.optimizer.backward(batched_outputs, batched_feedback.data)
+                self.optimizer.step()
+
                 logger.info(f"Batch {i//batch_size + 1}/{len(train_data)//batch_size + 1} Processed")
 
             # Optional: Test during training

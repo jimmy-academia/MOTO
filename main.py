@@ -90,7 +90,8 @@ async def run_main(args):
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    
+    args.train_limit = args.test_limit = args.batch_size = 5
+    args.epochs = 1
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
     os.environ["OPENAI_API_KEY"] = get_key()

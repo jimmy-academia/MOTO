@@ -104,8 +104,8 @@ class BaseBenchmark(ABC):
         return average_score, average_cost, total_cost
     
 
-    async def run_baseline(self, agent: Callable, max_concurrent_tasks: int = 50):
-        data = await self.load_data()
+    async def run_baseline(self, agent: Callable, max_concurrent_tasks: int = 50, specific_indices: List[int] = None):
+        data = await self.load_data(specific_indices)
         results = await self.evaluate_all_problems(data, agent, max_concurrent_tasks)
         columns = self.get_result_columns()
         average_score, average_cost, total_cost = self.save_results_to_csv(results, columns)
