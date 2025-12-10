@@ -18,7 +18,7 @@ def get_parser():
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model
-    parser.add_argument('-o', '--opt_model', type=str, default='gpt-5.1', help='Optimizer LLM')
+    parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-mini', help='Optimizer LLM')
     parser.add_argument('-e', '--exe_model', type=str, default='gpt-4o-mini', help='Executor LLM')
     # Limits
     parser.add_argument('--train_limit', type=int, default=10)
@@ -29,7 +29,8 @@ def get_parser():
     parser.add_argument('--force_eval', action='store_true', help='Force evaluation even if results exist')
     
     # Training Params
-    parser.add_argument('--epochs', type=int, default=2)
+    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--val_interval', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=5)
     parser.add_argument('--output_dir', type=str, default='output')
     
@@ -44,6 +45,8 @@ async def run_main(args):
     scheme_file = os.path.join(args.output_dir, scheme.scheme_file)
     eval_result_file = os.path.join(args.output_dir, scheme.result_file)
 
+    train_bench = get_benchmark(args.benchmark, split='validate', data_dir=args.data_dir)
+    test_bench = get_benchmark(args.benchmark, split='test', data_dir=args.data_dir)
     # Safe indices generation
     train_indices = get_safe_random_indices(args.benchmark, 'validate', args.train_limit)
     test_indices = get_safe_random_indices(args.benchmark, 'test', args.test_limit, seed=123)
@@ -52,12 +55,10 @@ async def run_main(args):
     # --------------------------------------------------------------------------
     # PHASE 1: TRAINING
     # --------------------------------------------------------------------------
+
     if args.train or not os.path.exists(scheme_file):
         logger.info(f"--- 🚀 Starting Training: {args.scheme} on {args.benchmark} ---")
-        
-        train_bench = get_benchmark(args.benchmark, split='validate', data_dir=args.data_dir)
-        
-        await scheme.train(train_benchmark=train_bench, train_indices=train_indices)
+        await scheme.train(train_benchmark=train_bench, train_indices=train_indices, test_benchmark=test_bench, test_indices=test_indices)
     else:
         logger.info(f"--- ✅ Scheme Found: {scheme_file} (Skipping Train) ---")
         scheme.load(scheme_file)
@@ -69,7 +70,7 @@ async def run_main(args):
 
         logger.info(f"--- 📊 Starting Evaluation: {args.benchmark} (Test Split) ---")
         
-        test_bench = get_benchmark(args.benchmark, split='test', data_dir=args.data_dir)
+        
         
         # Run Benchmark (uses the untouched benchmark.py logic)
         # We use the ASYNC inference wrapper from the scheme
@@ -90,14 +91,15 @@ async def run_main(args):
 def main():
     parser = get_parser()
     args = parser.parse_args()
+    logger.info(f" --- 🤖 Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
+
     args.train_limit = args.test_limit = args.batch_size = 5
-    args.epochs = 1
+    args.epochs = args.val_interval = 1
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
     os.environ["OPENAI_API_KEY"] = get_key()
     os.environ["TRACE_LITELLM_MODEL"] = args.opt_model
     os.environ["LITELLM_LOG"] = "INFO"
-    
     asyncio.run(run_main(args))
 
 if __name__ == '__main__':

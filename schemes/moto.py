@@ -14,6 +14,7 @@ from myopto import trace
 from .base import BaseScheme
 
 from utils.logs import logger
+from utils import writef
 
 # --- 1. The Agent (Synchronous Bundle) ---
 llm_client = LLMClient(model="gpt-4o-mini") 
@@ -42,36 +43,34 @@ You are an expert AI Systems Engineer optimizing a Python function `solution_wor
 
 Your goal is to modify the code to maximize accuracy on unseen test cases.
 
+### AVAILABLE TOOLS
+- **`llm(prompt: str) -> str`**: A global helper function is available in your scope. You MUST use this function for all reasoning, planning, and generation tasks. Do not attempt to initialize new clients (like OpenAI) inside the function.
+
 ### DIAGNOSIS INSTRUCTIONS
-Analyze the "Expected" vs "Got" values in the error log above:
-1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
-   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
-   - *Fix:* Add a "Planning" step before the solution step.
-   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
-2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
-   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
-   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
-   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+Analyze the "Expected" vs "Got" values in the error log. Example approachs:
+1. **Logic Error**: The reasoning failed.
+   - *Fix:* Use `llm()` to generate a step-by-step plan or "Chain of Thought".
+   - *Fix:* Break the problem into smaller sub-calls to `llm()`.
+2. **Extraction Error**: The answer is correct but buried in text.
+   - *Fix:* Use Python's `re` module to extract patterns like `\\boxed{(.*)}`.
+   - *Fix:* Use a dedicated `llm()` call to sanitize the output (e.g., "Extract only the number").
+3. **Generalization Error** (Hardcoding): The code returns a fixed string or specific solution.
+   - *Fix:* Ensure the code uses the `problem` input argument dynamically.
 
-### OPTIMIZATION STRATEGIES (Use these!)
-- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
-- **Python Power:** Use Python logic to make the code robust.
-   - Use `try/except` blocks to handle parsing failures.
-   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
-   - Use `re` (regex) to find numbers or patterns like `\boxed{...}`.
-- **Prompt Engineering:**
-   - Assign roles ("You are a math expert...").
-   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+### OPTIMIZATION STRATEGIES
+- **Pipeline Architecture:** Construct a robust flow: `Plan -> Reasoning -> Code/Math -> Verification -> Format`.
+- **Python Power:** Use Python for deterministic logic (regex, string splitting, `try/except` blocks) to handle the LLM's string outputs robustly.
+- **Self-Correction:** Implement a loop where the LLM checks its own answer and retries if it detects a format violation.
 
-### CONSTRAINTS
-1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
-2. **Validity:** The output must be valid, runnable Python code.
-3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+### CRITICAL CONSTRAINTS
+1. **NO HARDCODING:** You must NOT return a fixed string answer (e.g., `return "9"`). The code must solve *any* input `problem` dynamically.
+2. **USE THE TOOL:** You must use the `llm(prompt)` function. Do not mock it or replace it.
+3. **VALID SYNTAX:** The output must be a valid, runnable Python function definition starting exactly with `def solution_workflow(problem: str) -> str:`.
+4. **NO MARKDOWN:** Return *only* the Python code. Do not wrap it in ```python blocks.
 
 ### OUTPUT
 Return **only** the full, updated Python source code for `solution_workflow`.
 """
-
 def get_feedback_str(problem: str, gold: str, pred: str, is_correct: bool) -> str:
     if is_correct:
         return f"Test Case Passed! (Problem: {problem})"
@@ -100,6 +99,7 @@ class MotoScheme(BaseScheme):
     def __init__(self, args):
         super().__init__(args)
         self.optimizer = OptoPrime(solution_workflow.parameters())
+        self.scheme_file = self.output_dir/f"code.py"
 
     # [THE FIX] The benchmark calls 'await graph(input)'. 
     # We must provide an async function that returns (answer_str, cost_float).
@@ -116,7 +116,7 @@ class MotoScheme(BaseScheme):
         except Exception as e:
             return f"Error: {str(e)}", 0.0
 
-    async def train(self, train_benchmark, train_indices, val_benchmark=None, val_indices=None):
+    async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
         
         # Load Raw Data
@@ -140,20 +140,20 @@ class MotoScheme(BaseScheme):
                     try:
                         prediction_node = solution_workflow(problem)
                         prediction_str = prediction_node.data
-                        score, _ = train_benchmark.calculate_score(gold, pred_str)
+                        score, cleaned = train_benchmark.calculate_score(gold, prediction_str)
                         is_correct = (score == 1)
                         if not is_correct:
-                            logger.info(f"Expected: {gold} | Got: {pred}")
-                        fb_text = get_feedback_str(problem, gold, pred_str, is_correct)
+                            exp, pred = cleaned
+                            logger.info(f"\n>>> Expected: {exp} \n <<< Got: {pred}")
+                        fb_text = get_feedback_str(problem, gold, prediction_str, is_correct)
 
                     except trace.ExecutionError as e:
-                        pred_node = e.exception_node
-                        fb = str(e.exception_node.data)
+                        prediction_node = e.exception_node
+                        fb_text = str(e.exception_node.data)
 
-                    logger.debug(fb)
-                    correctness = pred_node.eq(gold)
-                    outputs.append(correctness)
-                    feedbacks.append(fb)
+                    logger.debug(fb_text)
+                    outputs.append(prediction_node)
+                    feedbacks.append(fb_text)
                     
                 batched_outputs = concat(*outputs)      # MessageNode[str-ish]
                 batched_feedback = concat(*feedbacks)   # MessageNode[str]
@@ -165,17 +165,19 @@ class MotoScheme(BaseScheme):
                 logger.info(f"Batch {i//batch_size + 1}/{len(train_data)//batch_size + 1} Processed")
 
             # Optional: Test during training
-            if val_benchmark and val_indices:
+            if test_benchmark and test_indices and (epoch + 1) % self.args.val_interval == 0:
                 logger.info("Running Mid-Training Validation...")
-                await val_benchmark.run_baseline(self.inference, specific_indices=val_indices)
+                await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
 
             # Save Checkpoint
-            self.save_model()
+            self.save_model(epoch)
             
-    def save_model(self):
+    def save_model(self, epoch=None):
         code = solution_workflow.parameters()[0].data
-        path = Path(self.args.output_dir) / f"{self.model_name}_optimized.py"
-        self.save(path, code)
+        path = Path(self.args.output_dir) / self.scheme_file
+        if epoch is not None:
+            writef(path.with_name(f"{path.name}.{epoch}"), code)
+        writef(path, code)
 
     def load(self, path: Path):
         path = Path(path)
@@ -185,5 +187,5 @@ class MotoScheme(BaseScheme):
         logger.info(f"Loading scheme from {path}")
         with path.open('r') as f:
             code = f.read()
-        solution_workflow.parameters()[0].data = code
+        solution_workflow.parameters()[0]._set(code)
         return True

@@ -1,3 +1,4 @@
+from pathlib import Path
 from abc import ABC, abstractmethod
 
 class BaseScheme(ABC):
@@ -5,8 +6,9 @@ class BaseScheme(ABC):
         self.args = args
         self.model_name = args.scheme  # e.g. 'moto'
         self.benchmark = args.benchmark
-        self.scheme_file = f"{args.scheme}_{args.benchmark}_optimized.py"
-        self.result_file = f"{args.scheme}_{args.benchmark}_eval_result.csv"
+        self.output_dir = Path(f"{args.scheme}_{args.benchmark}")
+        self.scheme_file = self.output_dir/f"prompt"
+        self.result_file = self.output_dir/f"score.csv"
 
     @abstractmethod
     async def train(self, train_benchmark, train_indices, val_benchmark=None, val_indices=None):
@@ -34,10 +36,3 @@ class BaseScheme(ABC):
         """
         pass
     
-    def save(self, path: str, content: str):
-        """Helper to save the optimized artifact."""
-        import os
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as f:
-            f.write(content)
-        print(f"Saved optimized scheme to {path}")

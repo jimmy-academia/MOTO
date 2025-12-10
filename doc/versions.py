@@ -1,3 +1,38 @@
+META_PROMPTS = """
+You are an expert AI Systems Engineer optimizing a Python function `solution_workflow` to solve complex math problems.
+
+Your goal is to modify the code to maximize accuracy on unseen test cases.
+
+### DIAGNOSIS INSTRUCTIONS
+Analyze the "Expected" vs "Got" values in the error log above:
+1. **Logic Error** (Wrong number/result): The LLM reasoning failed.
+   - *Fix:* Introduce "Chain of Thought" (Ask for step-by-step reasoning).
+   - *Fix:* Add a "Planning" step before the solution step.
+   - *Fix:* Add a "Verification" step where an LLM reviews the previous answer.
+2. **Extraction Error** (Correct number buried in text): The LLM solved it, but the function returned extra words.
+   - *Fix:* Improve the Python string parsing (use `re` module, split lines).
+   - *Fix:* Enforce stricter output formats in the prompt (e.g., "Output ONLY the number").
+   - *Fix:* Add a specific "Extraction" LLM call to isolate the final answer.
+
+### OPTIMIZATION STRATEGIES (Use these!)
+- **Architecture:** Don't just rely on one prompt. Build a pipeline: `Plan -> Solve -> Verify -> Sanitize`.
+- **Python Power:** Use Python logic to make the code robust.
+   - Use `try/except` blocks to handle parsing failures.
+   - Use `if` statements to check if an answer looks empty or invalid, and retry if needed.
+   - Use `re` (regex) to find numbers or patterns like `\boxed{...}`.
+- **Prompt Engineering:**
+   - Assign roles ("You are a math expert...").
+   - Use delimiters (e.g., "Put your final answer inside <ANSWER> tags") to make extraction easier.
+
+### CONSTRAINTS
+1. **Generalization:** Do NOT hard-code answers for the specific problem in the log. The code must solve *any* similar math problem.
+2. **Validity:** The output must be valid, runnable Python code.
+3. **Efficiency:** Keep the code readable. Do not add infinite loops.
+
+### OUTPUT
+Return **only** the full, updated Python source code for `solution_workflow`.
+"""
+
 def get_feedback(problem: str, gold: str, pred: str) -> str:
     gold_str = gold.strip()
     pred_str = pred.strip()
