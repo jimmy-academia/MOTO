@@ -1,9 +1,16 @@
+# llm.py
+
 import asyncio
 from contextvars import ContextVar
-from typing import Optional, Any
+from typing import Optional
 from openai import OpenAI, AsyncOpenAI
 
-# 1. Global Context & Configuration
+# --- Global Contexts ---
+
+# "sync" during training, "async" during testing
+llm_mode = ContextVar("llm_mode", default="sync")
+
+# Global total cost (if you care); you can ignore it if not needed.
 request_cost = ContextVar("request_cost", default=0.0)
 
 PRICING_PER_TOKEN = {
@@ -24,14 +31,14 @@ PRICING_PER_TOKEN = {
     "text-embedding-3-large": {"in": 0.13/1_000_000, "out": 0.0},
 }
 
+
 def get_key():
-    # Adjust path as necessary for your environment
     try:
         with open("../.openaiapi", "r") as f:
             return f.read().strip()
     except FileNotFoundError:
-        # Fallback or explicit error handling
         return "MISSING_KEY"
+
 
 def _compute_and_update_cost(resp, model: str, track_usage: bool):
     """
@@ -44,7 +51,6 @@ def _compute_and_update_cost(resp, model: str, track_usage: bool):
             return 0, 0, 0.0
 
         pricing = PRICING_PER_TOKEN.get(model)
-        # Fallback to gpt-4o-mini pricing if model not found
         if not pricing and "gpt-4o-mini" in model:
             pricing = PRICING_PER_TOKEN["gpt-4o-mini"]
 
@@ -56,170 +62,98 @@ def _compute_and_update_cost(resp, model: str, track_usage: bool):
         total_cost = cost_in + cost_out
 
         if track_usage:
-            current_cost = request_cost.get()
-            request_cost.set(current_cost + total_cost)
+            current = request_cost.get()
+            request_cost.set(current + total_cost)
 
         return usage.prompt_tokens, usage.completion_tokens, total_cost
-
     except Exception as e:
         print(f"Warning: Cost calculation failed: {e}")
         return 0, 0, 0.0
 
 
-# 2. The Class Definition (Must be defined BEFORE the wrappers use it)
 class LLMClient:
     """
-    Unified sync/async LLM client with optional usage tracking.
-
-    - mode="sync": use OpenAI (blocking).
-    - mode="async": use AsyncOpenAI under the hood; `answer()` is still sync
-      (via asyncio.run), and `answer_async()` is the true async API.
+    One client that supports both sync and async access.
+    Mode is chosen by the global llm_mode ContextVar via the llm() wrapper.
     """
 
-    def __init__(
-        self,
-        model: str = "gpt-5-nano",
-        max_tokens: int = 2200,
-        mode: str = "sync",          # "sync" or "async"
-        track_usage: bool = True,    # whether to update request_cost
-    ):
+    def __init__(self, model: str = "gpt-4o-mini", max_tokens: int = 2200):
         self.model = model
         self.max_tokens = max_tokens
-        self.mode = mode
-        self.track_usage = track_usage
+        self.api_key = get_key()
+        self.client = OpenAI(api_key=self.api_key)
+        self._async_client: Optional[AsyncOpenAI] = None
 
-        api_key = get_key()
-        # Sync client
-        self.client = OpenAI(api_key=api_key)
-        # Async client (lazy init in case you never use async)
-        self._async_client: AsyncOpenAI | None = None
+    def _get_async_client(self) -> AsyncOpenAI:
+        if self._async_client is None:
+            self._async_client = AsyncOpenAI(api_key=self.api_key)
+        return self._async_client
 
-    def _build_messages(self, prompt: str, system_prompt: str | None):
+    def _build_messages(self, prompt: str, system_prompt: Optional[str]):
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    # ---------- SYNC PATH (blocking) ----------
-
-    def _answer_sync_core(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-    ):
+    # ---- sync core ----
+    def answer_sync(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         messages = self._build_messages(prompt, system_prompt)
         resp = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             max_tokens=self.max_tokens,
         )
-        pt, ct, usd = _compute_and_update_cost(resp, self.model, self.track_usage)
-        content = resp.choices[0].message.content.strip()
-        return content, pt, ct, usd
+        _compute_and_update_cost(resp, self.model, track_usage=True)
+        return resp.choices[0].message.content.strip()
 
-    # ---------- ASYNC PATH (true async) ----------
-
-    async def _ensure_async_client(self) -> AsyncOpenAI:
-        if self._async_client is None:
-            self._async_client = AsyncOpenAI(api_key=get_key())
-        return self._async_client
-
-    async def _answer_async_core(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-    ):
-        client = await self._ensure_async_client()
+    # ---- async core ----
+    async def answer_async(self, prompt: str, system_prompt: Optional[str] = None) -> str:
+        client = self._get_async_client()
         messages = self._build_messages(prompt, system_prompt)
         resp = await client.chat.completions.create(
             model=self.model,
             messages=messages,
             max_tokens=self.max_tokens,
         )
-        pt, ct, usd = _compute_and_update_cost(resp, self.model, self.track_usage)
-        content = resp.choices[0].message.content.strip()
-        return content, pt, ct, usd
-
-    # ---------- PUBLIC APIS ----------
-
-    def answer(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        return_usage: bool = False,
-    ):
-        """
-        Synchronous API used by wrapper / normal code.
-        If mode="async", this calls asyncio.run(), so this method
-        MUST be called from a thread where there is no running event loop.
-        """
-        if self.mode == "sync":
-            content, pt, ct, usd = self._answer_sync_core(prompt, system_prompt)
-        else:
-            # async under the hood, still sync to the caller
-            content, pt, ct, usd = asyncio.run(
-                self._answer_async_core(prompt, system_prompt)
-            )
-
-        if return_usage:
-            return content, pt, ct, usd
-        return content
-
-    async def answer_async(
-        self,
-        prompt: str,
-        system_prompt: str | None = None,
-        return_usage: bool = False,
-    ):
-        """
-        True async API.
-        """
-        if self.mode == "sync":
-            content, pt, ct, usd = self._answer_sync_core(prompt, system_prompt)
-        else:
-            content, pt, ct, usd = await self._answer_async_core(
-                prompt, system_prompt
-            )
-
-        if return_usage:
-            return content, pt, ct, usd
-        return content
+        _compute_and_update_cost(resp, self.model, track_usage=True)
+        return resp.choices[0].message.content.strip()
 
 
-# 3. Global State & Wrapper Functions (Defined AFTER class)
+# --- Global singleton & wrapper ---
 
-_ACTIVE_CLIENT: Optional[LLMClient] = None
+GLOBAL_CLIENT = LLMClient(model="gpt-4o-mini")
 
-def _get_client() -> LLMClient:
-    """Lazy initialization of the global client."""
-    global _ACTIVE_CLIENT
-    if _ACTIVE_CLIENT is None:
-        # Default to safe sync mode
-        _ACTIVE_CLIENT = LLMClient(mode="sync")
-    return _ACTIVE_CLIENT
 
-def configure_llm(mode: str = "sync", model: str = "gpt-5-nano"):
+def set_llm_mode(mode: str):
     """
-    Global Phase Change.
-    - "sync": Normal blocking scripts.
-    - "async": Use when running solution_workflow inside threads in an async app.
+    mode: "sync" or "async"
+    TRAIN: set_llm_mode("sync")
+    TEST:  set_llm_mode("async")
     """
-    global _ACTIVE_CLIENT
-    print(f"--- Switching LLM Phase to: {mode.upper()} ({model}) ---")
-    _ACTIVE_CLIENT = LLMClient(mode=mode, model=model)
+    if mode not in ("sync", "async"):
+        raise ValueError(f"Invalid llm_mode: {mode}")
+    llm_mode.set(mode)
 
-def llm(
-    prompt: str, 
-    system_prompt: str = None, 
-    return_usage: bool = False
-) -> str | tuple:
+
+def llm(prompt: str, system_prompt: Optional[str] = None) -> str:
     """
-    The single function your business logic should call.
+    The universal wrapper.
+
+    - In TRAIN (llm_mode="sync"):
+        called directly from sync Trace code.
+    - In TEST (llm_mode="async"):
+        called from worker threads (via asyncio.to_thread),
+        where we can safely use asyncio.run for the async client.
     """
-    client = _get_client()
-    return client.answer(
-        prompt=prompt, 
-        system_prompt=system_prompt, 
-        return_usage=return_usage
-    )
+    mode = llm_mode.get()
+
+    if mode == "sync":
+        return GLOBAL_CLIENT.answer_sync(prompt, system_prompt)
+
+    if mode == "async":
+        # This must be called from a context *without* an active event loop.
+        # In our design, that means: inside worker threads during inference.
+        return asyncio.run(GLOBAL_CLIENT.answer_async(prompt, system_prompt))
+
+    raise RuntimeError(f"Unknown llm_mode: {mode}")

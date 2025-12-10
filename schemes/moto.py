@@ -4,7 +4,7 @@ import random
 import asyncio
 from pathlib import Path
 
-from llm import LLMClient, request_cost
+from llm import llm, configure_llm, request_cost
 
 from myopto.trace import bundle
 from myopto.optimizers import OptoPrime
@@ -21,12 +21,9 @@ from ._moto_prompt import META_PROMPTS
 from utils.logs import logger
 from utils import writef
 
-# --- 1. The Agent (Synchronous Bundle) ---
-llm_client = LLMClient(model="gpt-4o-mini") 
+MODEL_NAME = "gpt-4o-mini"
 
-# true async!
-def llm(prompt: str) -> str:
-    return llm_client.answer(prompt)
+# --- 1. The Agent (Synchronous Bundle) ---
 
 @bundle(trainable=True)
 def solution_workflow(problem: str) -> str:
@@ -73,36 +70,10 @@ class MotoScheme(BaseScheme):
         super().__init__(args)
         self.optimizer = OptoPrime(solution_workflow.parameters())
         self.scheme_file = self.scheme_file.with_name("code.py")
+        
+        configure_llm(mode="async", model=MODEL_NAME)
 
-    async def inference(self, input_text: str) -> tuple[str, float]:
-        """
-        Async wrapper around the synchronous Trace bundle.
-        This is what the benchmark will `await`.
-        """
-        # cost accounting is *per call*
-        token = request_cost.set(0.0)
-
-        def _run_sync():
-            # Turn off Trace graph-building during evaluation
-            with trace.stop_tracing():
-                node = solution_workflow(input_text)   # sync, uses LLMClient
-                return str(node.data)
-
-        try:
-            # Run the blocking graph in a worker thread.
-            prediction_str = await asyncio.to_thread(_run_sync)
-
-            # NOTE: ContextVars don’t propagate *back* across threads,
-            # so `request_cost.get()` here may not reflect updates done
-            # inside LLMClient.answer. If you need accurate cost, see section 3.
-            total_cost = request_cost.get()
-            return prediction_str, total_cost
-        except Exception as e:
-            return f"Error: {str(e)}", 0.0
-        finally:
-            request_cost.reset(token)
-            
-    async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
+    def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
         
         # Load Raw Data
@@ -115,7 +86,8 @@ class MotoScheme(BaseScheme):
             # Optional: Test during training
             if test_benchmark and test_indices and epoch % self.args.val_interval == 0:
                 logger.info("Running Mid-Training Validation...")
-                await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
+                inference = self.prep_test()
+                await test_benchmark.run_baseline(inference, specific_indices=test_indices)
 
             random.shuffle(train_data)
             
@@ -157,7 +129,19 @@ class MotoScheme(BaseScheme):
 
             # Save Checkpoint
             self.save_model(epoch)
-            
+
+    def prep_test(self):
+        _free_solution = solution_workflow.fn
+        async def inference(self, input_text: str) -> tuple[str, float]:
+            def _run_free():
+                result = _free_solution(input_text)
+                return str(result)
+
+            prediction_str = await asyncio.to_thread(_run_free)
+            return prediction_str, 0.0
+            inference = self.prep_te
+        return inference
+
     def save_model(self, epoch=None):
         code = solution_workflow.parameters()[0].data
         path = self.scheme_file
