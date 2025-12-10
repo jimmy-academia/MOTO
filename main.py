@@ -73,8 +73,9 @@ async def run_main(args):
         
         # Run Benchmark (uses the untouched benchmark.py logic)
         # We use the ASYNC inference wrapper from the scheme
+        scheme.prep_test()
         score, cost, total_cost = await test_bench.run_baseline(
-            agent=scheme.prep_test(), 
+            agent=scheme.inference, 
             max_concurrent_tasks=10, 
             specific_indices=test_indices
         )

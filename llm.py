@@ -1,50 +1,46 @@
 # llm.py
 
 import asyncio
-from contextvars import ContextVar
+import threading
 from typing import Optional
 from openai import OpenAI, AsyncOpenAI
 
-# --- Global Contexts ---
+# Global mode: "sync" for training, "async" for testing
+_llm_mode: str = "sync"
+_mode_lock = threading.Lock()
+_track_usage: bool = False
 
-# "sync" during training, "async" during testing
-llm_mode = ContextVar("llm_mode", default="sync")
-
-# Global total cost (if you care); you can ignore it if not needed.
-request_cost = ContextVar("request_cost", default=0.0)
+# Global total cost (USD) across all calls
+from contextvars import ContextVar
+request_cost: ContextVar[float] = ContextVar("request_cost", default=0.0)
 
 PRICING_PER_TOKEN = {
-    # GPT-5 family
     "gpt-5":            {"in": 1.25/1_000_000, "out": 10.00/1_000_000},
     "gpt-5-mini":       {"in": 0.25/1_000_000, "out":  2.00/1_000_000},
     "gpt-5-nano":       {"in": 0.05/1_000_000, "out":  0.40/1_000_000},
-
-    # GPT-4 family
     "gpt-4.1":          {"in": 5.00/1_000_000, "out": 15.00/1_000_000},
     "gpt-4.1-mini":     {"in": 0.40/1_000_000, "out":  1.60/1_000_000},
     "gpt-4o":           {"in": 5.00/1_000_000, "out": 15.00/1_000_000},
     "gpt-4o-mini":      {"in": 0.50/1_000_000, "out":  1.50/1_000_000},
     "gpt-4-turbo":      {"in": 10.00/1_000_000, "out": 30.00/1_000_000},
-
-    # Embedding
     "text-embedding-3-small": {"in": 0.02/1_000_000, "out": 0.0},
     "text-embedding-3-large": {"in": 0.13/1_000_000, "out": 0.0},
 }
 
 
 def get_key():
-    try:
-        with open("../.openaiapi", "r") as f:
-            return f.read().strip()
-    except FileNotFoundError:
-        return "MISSING_KEY"
+    with open("../.openaiapi", "r") as f:
+        return f.read().strip()
 
 
-def _compute_and_update_cost(resp, model: str, track_usage: bool):
+def _compute_and_update_cost(resp, model: str):
     """
-    Compute token + $ cost and optionally update the global ContextVar.
-    Returns (prompt_tokens, completion_tokens, usd) or (0,0,0) on failure.
+    Compute token + $ cost and update the per-context `request_cost`
+    if `_track_usage` is True.
+    Returns (prompt_tokens, completion_tokens, usd).
     """
+    global _track_usage
+
     try:
         usage = getattr(resp, "usage", None)
         if not usage:
@@ -61,7 +57,7 @@ def _compute_and_update_cost(resp, model: str, track_usage: bool):
         cost_out = usage.completion_tokens * pricing.get("out", 0.0)
         total_cost = cost_in + cost_out
 
-        if track_usage:
+        if _track_usage:
             current = request_cost.get()
             request_cost.set(current + total_cost)
 
@@ -71,12 +67,8 @@ def _compute_and_update_cost(resp, model: str, track_usage: bool):
         return 0, 0, 0.0
 
 
-class LLMClient:
-    """
-    One client that supports both sync and async access.
-    Mode is chosen by the global llm_mode ContextVar via the llm() wrapper.
-    """
 
+class LLMClient:
     def __init__(self, model: str = "gpt-4o-mini", max_tokens: int = 2200):
         self.model = model
         self.max_tokens = max_tokens
@@ -90,70 +82,83 @@ class LLMClient:
         return self._async_client
 
     def _build_messages(self, prompt: str, system_prompt: Optional[str]):
-        messages = []
+        msgs = []
         if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-        return messages
+            msgs.append({"role": "system", "content": system_prompt})
+        msgs.append({"role": "user", "content": prompt})
+        return msgs
 
-    # ---- sync core ----
     def answer_sync(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        messages = self._build_messages(prompt, system_prompt)
         resp = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=self._build_messages(prompt, system_prompt),
             max_tokens=self.max_tokens,
         )
-        _compute_and_update_cost(resp, self.model, track_usage=True)
+        _compute_and_update_cost(resp, self.model)
         return resp.choices[0].message.content.strip()
-
-    # ---- async core ----
+        
     async def answer_async(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         client = self._get_async_client()
-        messages = self._build_messages(prompt, system_prompt)
         resp = await client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=self._build_messages(prompt, system_prompt),
             max_tokens=self.max_tokens,
         )
-        _compute_and_update_cost(resp, self.model, track_usage=True)
+        _compute_and_update_cost(resp, self.model)
         return resp.choices[0].message.content.strip()
 
 
-# --- Global singleton & wrapper ---
-
-GLOBAL_CLIENT = LLMClient(model="gpt-4o-mini")
+_GLOBAL_CLIENT = LLMClient(model="gpt-4o-mini")
 
 
-def set_llm_mode(mode: str):
+def configure_llm(
+    mode: str = "sync",
+    model: Optional[str] = None,
+    max_tokens: Optional[int] = None,
+    usage: Optional[bool] = None,
+):
     """
+    Configure global LLM behavior.
+
     mode: "sync" or "async"
-    TRAIN: set_llm_mode("sync")
-    TEST:  set_llm_mode("async")
+    model: optional new model name
+    usage: if not None, turn global cost tracking on/off
     """
+    global _llm_mode, _GLOBAL_CLIENT, _track_usage
+
     if mode not in ("sync", "async"):
-        raise ValueError(f"Invalid llm_mode: {mode}")
-    llm_mode.set(mode)
+        raise ValueError(f"Invalid mode: {mode}")
+
+    with _mode_lock:
+        _llm_mode = mode
+
+        if usage is not None:
+            _track_usage = usage
+
+        if model is not None or max_tokens is not None:
+            _GLOBAL_CLIENT = LLMClient(
+                model=model or _GLOBAL_CLIENT.model,
+                max_tokens=max_tokens or _GLOBAL_CLIENT.max_tokens,
+            )
+
 
 
 def llm(prompt: str, system_prompt: Optional[str] = None) -> str:
     """
-    The universal wrapper.
+    Global wrapper used inside solution_workflow.
 
-    - In TRAIN (llm_mode="sync"):
-        called directly from sync Trace code.
-    - In TEST (llm_mode="async"):
-        called from worker threads (via asyncio.to_thread),
-        where we can safely use asyncio.run for the async client.
+    - If configured sync: blocks.
+    - If configured async: uses AsyncOpenAI under the hood via asyncio.run().
+      Must be called from a context with no running event loop
+      (i.e., from worker threads via asyncio.to_thread).
     """
-    mode = llm_mode.get()
+    mode = _llm_mode   # read under the assumption config is set before use
 
     if mode == "sync":
-        return GLOBAL_CLIENT.answer_sync(prompt, system_prompt)
+        return _GLOBAL_CLIENT.answer_sync(prompt, system_prompt)
 
     if mode == "async":
-        # This must be called from a context *without* an active event loop.
-        # In our design, that means: inside worker threads during inference.
-        return asyncio.run(GLOBAL_CLIENT.answer_async(prompt, system_prompt))
+        # Called from a worker thread during inference, so nested loop is OK.
+        return asyncio.run(_GLOBAL_CLIENT.answer_async(prompt, system_prompt))
 
-    raise RuntimeError(f"Unknown llm_mode: {mode}")
+    raise RuntimeError(f"Unknown LLM mode: {mode}")

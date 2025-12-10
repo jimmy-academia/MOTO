@@ -21,8 +21,6 @@ from ._moto_prompt import META_PROMPTS
 from utils.logs import logger
 from utils import writef
 
-MODEL_NAME = "gpt-4o-mini"
-
 # --- 1. The Agent (Synchronous Bundle) ---
 
 @bundle(trainable=True)
@@ -71,9 +69,9 @@ class MotoScheme(BaseScheme):
         self.optimizer = OptoPrime(solution_workflow.parameters())
         self.scheme_file = self.scheme_file.with_name("code.py")
         
-        configure_llm(mode="async", model=MODEL_NAME)
+        configure_llm(mode="sync", model=self.args.exe_model, usage=False)
 
-    def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
+    async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
         
         # Load Raw Data
@@ -85,9 +83,11 @@ class MotoScheme(BaseScheme):
 
             # Optional: Test during training
             if test_benchmark and test_indices and epoch % self.args.val_interval == 0:
-                logger.info("Running Mid-Training Validation...")
-                inference = self.prep_test()
-                await test_benchmark.run_baseline(inference, specific_indices=test_indices)
+                logger.info(f"Running Mid-Training Validation on epoch {epoch}..")
+                self.prep_test()
+                await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
+                configure_llm(mode="sync", model=self.args.exe_model, usage=False)
+
 
             random.shuffle(train_data)
             
@@ -131,16 +131,22 @@ class MotoScheme(BaseScheme):
             self.save_model(epoch)
 
     def prep_test(self):
-        _free_solution = solution_workflow.fn
-        async def inference(self, input_text: str) -> tuple[str, float]:
-            def _run_free():
-                result = _free_solution(input_text)
-                return str(result)
+        configure_llm(usage=True)
+        self._free_solution = solution_workflow.fun
 
+    async def inference(self, input_text: str) -> tuple[str, float]:
+        token = request_cost.set(0.0)
+        def _run_free():
+            result = self._free_solution(input_text)
+            return str(result)
+        try:
             prediction_str = await asyncio.to_thread(_run_free)
-            return prediction_str, 0.0
-            inference = self.prep_te
-        return inference
+            total_cost = request_cost.get()
+            return prediction_str, total_cost
+        except Exception as e:
+            return f"Error: {str(e)}", 0.0
+        finally:
+            request_cost.reset(token)
 
     def save_model(self, epoch=None):
         code = solution_workflow.parameters()[0].data
