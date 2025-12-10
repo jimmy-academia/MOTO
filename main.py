@@ -7,7 +7,7 @@ from benchmarks import get_benchmark
 from schemes import get_scheme
 from utils.logs import logger
 from utils.count_data import get_safe_random_indices
-from utils import dumpj
+from utils import good_json_dump
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -99,7 +99,7 @@ def main():
     args.batch_size = 5
     args.epochs = 10
     args.val_interval = 1
-    logger.debug("Arguments:\n" + dumpj(vars(args)))
+    logger.debug("Arguments:\n" + good_json_dump(vars(args)))
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
     os.environ["OPENAI_API_KEY"] = get_key()

@@ -27,12 +27,17 @@ class NamespaceEncoder(json.JSONEncoder):
     else:
       return super().default(obj)
 
+def good_json_dump(dictionary):
+    obj = json.dumps(dictionary, indent=4, cls=NamespaceEncoder)
+    obj = re.sub(r'("|\d+),\s+', r'\1, ', obj)
+    obj = re.sub(r'\[\n\s*("|\d+)', r'[\1', obj)
+    obj = re.sub(r'("|\d+)\n\s*\]', r'\1]', obj)
+    return obj
+    
+
 def dumpj(filepath, dictionary):
     with open(filepath, "w") as f:
-        obj = json.dumps(dictionary, indent=4, cls=NamespaceEncoder)
-        obj = re.sub(r'("|\d+),\s+', r'\1, ', obj)
-        obj = re.sub(r'\[\n\s*("|\d+)', r'[\1', obj)
-        obj = re.sub(r'("|\d+)\n\s*\]', r'\1]', obj)
+        obj = good_json_dump(dictionary)
         f.write(obj)
 
 def loadj(filepath):
