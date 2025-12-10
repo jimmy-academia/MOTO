@@ -23,6 +23,7 @@ from utils import writef
 # --- 1. The Agent (Synchronous Bundle) ---
 llm_client = LLMClient(model="gpt-4o-mini") 
 
+# true async!
 def llm(prompt: str) -> str:
     return llm_client.answer(prompt)
 
