@@ -8,6 +8,8 @@ from myopto.trace import bundle
 from myopto.optimizers import OptoPrime
 from myopto import trace
 
+from tqdm import tqdm
+
 # patch for parallel batch
 # https://docs.google.com/document/d/1Jk-GwRUlLyUYK4qpcQrMBhU8sgmg2WlOl0obf2Akhz0/edit?usp=sharing
 
@@ -104,17 +106,26 @@ class MotoScheme(BaseScheme):
     # [THE FIX] The benchmark calls 'await graph(input)'. 
     # We must provide an async function that returns (answer_str, cost_float).
     async def inference(self, input_text: str) -> tuple[str, float]:
+        # Reset cost for this specific async task context
+        # .set() returns a token we can use to reset if needed, but here we just want to start at 0
+        token = request_cost.set(0.0)
         try:
             # 1. Run the synchronous bundle
-            # Since solution_workflow returns a MessageNode, we access .data
-            prediction_node = solution_workflow(input_text)
-            prediction_str = str(prediction_node.data)
+            # Disabling tracing to eliminate unnecessary graph overhead in evaluation.
+            with trace.stop_tracing():
+                # Since solution_workflow returns a MessageNode, we access .data
+                prediction_node = solution_workflow(input_text)
+                prediction_str = str(prediction_node.data)
             
             # 2. Return format (Answer, Cost)
-            # You can calculate actual cost here if your LLMClient tracks it
-            return prediction_str, 0.0 
+            total_cost = request_cost.get()
+            return prediction_str, total_cost
+        
         except Exception as e:
             return f"Error: {str(e)}", 0.0
+        finally:
+            # Good practice to reset context, though not strictly required if tasks are isolated
+            request_cost.reset(token)
 
     async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
@@ -125,6 +136,12 @@ class MotoScheme(BaseScheme):
 
         for epoch in range(self.args.epochs):
             logger.info(f"\n--- Epoch {epoch+1}/{self.args.epochs} ---")
+
+            # Optional: Test during training
+            if test_benchmark and test_indices and epoch % self.args.val_interval == 0:
+                logger.info("Running Mid-Training Validation...")
+                await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
+
             random.shuffle(train_data)
             
             # Batch Processing
@@ -134,7 +151,8 @@ class MotoScheme(BaseScheme):
                 outputs = []
                 feedbacks = []
                 
-                for example in batch:
+                desc = f"Processing Batch {i//batch_size + 1}/{len(train_data)//batch_size + 1}"
+                for example in tqdm(batch, ncols=88, desc=desc):
                     problem = example[train_benchmark.q_key]
                     gold = example[train_benchmark.a_key]
                     try:
@@ -161,13 +179,6 @@ class MotoScheme(BaseScheme):
                 self.optimizer.zero_feedback()
                 self.optimizer.backward(batched_outputs, batched_feedback.data)
                 self.optimizer.step()
-
-                logger.info(f"Batch {i//batch_size + 1}/{len(train_data)//batch_size + 1} Processed")
-
-            # Optional: Test during training
-            if test_benchmark and test_indices and (epoch + 1) % self.args.val_interval == 0:
-                logger.info("Running Mid-Training Validation...")
-                await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
 
             # Save Checkpoint
             self.save_model(epoch)
