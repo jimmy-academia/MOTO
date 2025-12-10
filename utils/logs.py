@@ -76,17 +76,13 @@ class SimpleLogger:
             self.file_output = open(file_path, 'a', encoding='utf-8')
     
     def _log(self, level: LogLevel, message: str) -> None:
-        """Internal method to log messages at specified level"""
-        if level.value[0] < self.log_level:
-            return
-            
         # Format the log message
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         level_name = level.name
         formatted_msg = f"{timestamp} - {level_name} - {message}"
         
         # Write to console if enabled
-        if self.console_output:
+        if self.console_output and level.value[0] < self.log_level::
             color = level.value[1]
             # Add bold to critical messages
             if level == LogLevel.CRITICAL:
