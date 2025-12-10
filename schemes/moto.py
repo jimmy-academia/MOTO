@@ -1,6 +1,7 @@
 # schemes/moto.py
 import os
 import random
+import asyncio
 from pathlib import Path
 
 from llm import LLMClient, request_cost
@@ -74,27 +75,33 @@ class MotoScheme(BaseScheme):
         self.scheme_file = self.scheme_file.with_name("code.py")
 
     async def inference(self, input_text: str) -> tuple[str, float]:
-        # Reset cost for this specific async task context
-        # .set() returns a token we can use to reset if needed, but here we just want to start at 0
+        """
+        Async wrapper around the synchronous Trace bundle.
+        This is what the benchmark will `await`.
+        """
+        # cost accounting is *per call*
         token = request_cost.set(0.0)
-        try:
-            # 1. Run the synchronous bundle
-            # Disabling tracing to eliminate unnecessary graph overhead in evaluation.
+
+        def _run_sync():
+            # Turn off Trace graph-building during evaluation
             with trace.stop_tracing():
-                # Since solution_workflow returns a MessageNode, we access .data
-                prediction_node = solution_workflow(input_text)
-                prediction_str = str(prediction_node.data)
-            
-            # 2. Return format (Answer, Cost)
+                node = solution_workflow(input_text)   # sync, uses LLMClient
+                return str(node.data)
+
+        try:
+            # Run the blocking graph in a worker thread.
+            prediction_str = await asyncio.to_thread(_run_sync)
+
+            # NOTE: ContextVars don’t propagate *back* across threads,
+            # so `request_cost.get()` here may not reflect updates done
+            # inside LLMClient.answer. If you need accurate cost, see section 3.
             total_cost = request_cost.get()
             return prediction_str, total_cost
-        
         except Exception as e:
             return f"Error: {str(e)}", 0.0
         finally:
-            # Good practice to reset context, though not strictly required if tasks are isolated
             request_cost.reset(token)
-
+            
     async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
         
