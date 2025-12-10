@@ -93,8 +93,12 @@ def main():
     args = parser.parse_args()
     logger.info(f" --- 🤖 Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
 
-    args.train_limit = args.test_limit = args.batch_size = 5
-    args.epochs = args.val_interval = 1
+    args.train_limit = 20
+    args.test_limit = 100
+    args.batch_size = 5
+    args.epochs = 10
+    args.val_interval = 1
+    logger.debug(args)
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
     os.environ["OPENAI_API_KEY"] = get_key()
