@@ -4,16 +4,13 @@ import random
 import asyncio
 from pathlib import Path
 
-from llm import llm, configure_llm, request_cost
+from llm import global_llm, configure_llm, request_cost
 
 from myopto.trace import bundle
 from myopto.optimizers import OptoPrime
 from myopto import trace
 
 from tqdm import tqdm
-
-# patch for parallel batch
-# https://docs.google.com/document/d/1Jk-GwRUlLyUYK4qpcQrMBhU8sgmg2WlOl0obf2Akhz0/edit?usp=sharing
 
 from .base import BaseScheme
 from ._moto_prompt import META_PROMPTS
@@ -23,7 +20,15 @@ from utils import writef
 
 # --- 1. The Agent (Synchronous Bundle) ---
 
-@bundle(trainable=True)
+
+# traceable_code=True,
+# allow_external_dependencies=True,
+
+@bundle(trainable=False,traceable_code=True,catch_execution_error=True)
+def llm(prompt: str):
+    return global_llm(str(prompt))
+
+@bundle(trainable=True, traceable_code=True)
 def solution_workflow(problem: str) -> str:
     """
     Solves a math problem and extracts the answer.
@@ -82,11 +87,12 @@ class MotoScheme(BaseScheme):
             logger.info(f"\n--- Epoch {epoch}/{self.args.epochs} ---")
 
             # Optional: Test during training
-            if test_benchmark and test_indices and (epoch -1) % self.args.val_interval == 0:
-                logger.info(f"Running Mid-Training Validation on epoch {epoch}..")
-                self.prep_test()
-                await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
-                configure_llm(mode="sync", model=self.args.exe_model, usage=False)
+            logger.warning('skip mid-training validation')
+            # if test_benchmark and test_indices and (epoch+3) % self.args.val_interval == 0:
+            #     logger.info(f"Running Mid-Training Validation on epoch {epoch}..")
+            #     self.prep_test()
+            #     await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
+            #     configure_llm(mode="sync", model=self.args.exe_model, usage=False)
 
 
             random.shuffle(train_data)

@@ -143,7 +143,7 @@ def configure_llm(
 
 
 
-def llm(prompt: str, system_prompt: Optional[str] = None) -> str:
+def global_llm(prompt: str, system_prompt: Optional[str] = None) -> str:
     """
     Global wrapper used inside solution_workflow.
 

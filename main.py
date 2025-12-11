@@ -20,7 +20,9 @@ def get_parser():
     
     # model
     parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-mini', help='Optimizer LLM')
-    parser.add_argument('-e', '--exe_model', type=str, default='gpt-4o-mini', help='Executor LLM')
+    parser.add_argument('-e', '--exe_model', type=str, default='gpt-5-nano', help='Executor LLM')
+    # parser.add_argument('-e', '--exe_model', type=str, default='gpt-4o-mini', help='Executor LLM')
+    parser.add_argument('-m', '--mode', type=str, default='baseline', help='mode for custome moto optimization, choose `baseline` or `ABC...`')
     # Limits
     parser.add_argument('--train_limit', type=int, default=10)
     parser.add_argument('--test_limit', type=int, default=10)
@@ -86,7 +88,6 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    args.opt_model = 'gpt-5'
     args.train_limit = 20
     args.test_limit = 100
     args.batch_size = 5
