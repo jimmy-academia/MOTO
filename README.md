@@ -4,6 +4,14 @@
 
 ## Details
 
+The basis of our work is:
+- Trace: a general-purpose Python framework that records internal execution traces and uses LLMs to generate targeted code edits
+
+We conduct a series of improvements to speciallize Trace into a LLM workflow optimizer.
+- A. Diagnostics + structure-vs-content decision
+- B....
+
+
 
 ## Citation
 
