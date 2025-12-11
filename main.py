@@ -41,33 +41,27 @@ async def run_main(args):
 
     scheme = get_scheme(args.scheme, args)
     
-    # Paths
-    os.makedirs(args.output_dir, exist_ok=True)
-    scheme_file = os.path.join(args.output_dir, scheme.scheme_file)
-    eval_result_file = os.path.join(args.output_dir, scheme.result_file)
-
     train_bench = get_benchmark(args.benchmark, split='validate', data_dir=args.data_dir)
     test_bench = get_benchmark(args.benchmark, split='test', data_dir=args.data_dir)
     # Safe indices generation
     train_indices = get_safe_random_indices(args.benchmark, 'validate', args.train_limit)
     test_indices = get_safe_random_indices(args.benchmark, 'test', args.test_limit, seed=123)
         
-
-    # --------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # PHASE 1: TRAINING
-    # --------------------------------------------------------------------------
+    # ------------------------------------------------------------------
 
-    if args.train or not os.path.exists(scheme_file):
+    if args.train or not scheme.scheme_file.exists():
         logger.info(f"--- 🚀 Starting Training: {args.scheme} on {args.benchmark} ---")
         await scheme.train(train_benchmark=train_bench, train_indices=train_indices, test_benchmark=test_bench, test_indices=test_indices[:20])
     else:
-        logger.info(f"--- ✅ Scheme Found: {scheme_file} (Skipping Train) ---")
-        scheme.load(scheme_file)
+        logger.info(f"--- ✅ Scheme Found: {scheme.scheme_file} (Skipping Train) ---")
+        scheme.load(scheme.scheme_file)
 
-    # --------------------------------------------------------------------------
+    # ------------------------------------------------------------------
     # PHASE 2: EVALUATION
-    # --------------------------------------------------------------------------
-    if args.force_eval or not os.path.exists(eval_result_file):
+    # ------------------------------------------------------------------
+    if args.force_eval or not os.path.exists(scheme.result_file):
 
         logger.info(f"--- 📊 Starting Evaluation: {args.benchmark} (Test Split) ---")
         
@@ -80,13 +74,13 @@ async def run_main(args):
             specific_indices=test_indices
         )
         
-        with open(eval_result_file, 'w') as f:
+        with open(scheme.result_file, 'w') as f:
             f.write(f"benchmark,score,cost\n{args.benchmark},{score},{cost}")
         
-        logger.info(f"Saved evaluation checkpoint to {eval_result_file}")
+        logger.info(f"Saved evaluation checkpoint to {scheme.result_file}")
 
     else:
-        logger.info(f"--- ✅ Evaluation Results Found: {eval_result_file} (Skipping Eval) ---")
+        logger.info(f"--- ✅ Evaluation Results Found: {scheme.result_file} (Skipping Eval) ---")
     
 def main():
     parser = get_parser()
