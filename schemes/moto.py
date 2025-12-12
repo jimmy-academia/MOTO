@@ -90,18 +90,14 @@ class MotoScheme(BaseScheme):
             #     self.prep_test()
             #     await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
             #     configure_llm(usage=False)
-
-
-            random.shuffle(train_data)
-            
+            # random.shuffle(train_data)
             # Batch Processing
+
             batch_size = self.args.batch_size
             for i in range(0, len(train_data), batch_size):
                 batch = train_data[i : i + batch_size]
                 outputs = []
                 feedbacks = []
-                logger.info(trace.GRAPH.summary(limit=15))
-                input()
                 desc = f"Processing Batch {i//batch_size + 1}/{(len(train_data) - 1) // batch_size + 1}"
                 for example in tqdm(batch, ncols=88, desc=desc):
                     problem = example[train_benchmark.q_key]
@@ -128,9 +124,38 @@ class MotoScheme(BaseScheme):
                 batched_feedback = concat(*feedbacks)   # MessageNode[str]
 
                 self.optimizer.zero_feedback()
-                self.optimizer.backward(batched_outputs, batched_feedback.data, visualize=True)
-                render_opt_step(0, self.optimizer)
-                input('pause')
+                self.optimizer.backward(batched_outputs, batched_feedback.data, visualize=True, print_limit=1e5)
+                input('pause after optimizer.backward()')
+
+                tg = self.optimizer.trace_graph
+                logger.info(f"TraceGraph size = {len(tg.graph)}")
+
+                for lvl, node in tg.graph:   # no limit
+                    logger.info(
+                        f"[L{lvl}] {node.py_name} | "
+                        f"parents={[p.py_name for p in node.parents]}"
+                    )
+                input('pause after optimizer.trace_graph')
+
+                from myopto.optimizers.optoprime import node_to_function_feedback
+
+                ff = node_to_function_feedback(tg)
+
+                logger.info("=== FUNCTION GRAPH (FULL) ===")
+                for lvl, line in ff.graph:   # no limit
+                    logger.info(f"[L{lvl}] {line}")
+
+                logger.info("Roots:")
+                for k in ff.roots:
+                    logger.info(f"  {k}")
+
+                logger.info("Outputs:")
+                for k in ff.output:
+                    logger.info(f"  {k}")
+
+                input("pause before step")
+
+                check()
                 self.optimizer.step()
 
             # Save Checkpoint
