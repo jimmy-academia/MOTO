@@ -213,39 +213,67 @@ class StructureEditor:
         return system_prompt, user_prompt
 
     # ---------- calling ----------
-    def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
-        """
-        Similar to OptoPrime.call_llm: try json_object mode, then fallback.
-        """
+    def call_llm(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 4096,
+    ):
+        """Call the LLM with a prompt and return the response."""
+        if self.verbose not in (False, "output"):
+            print("Prompt\n", system_prompt + user_prompt)
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ]
 
         response = None
-        # try json mode
+        last_err = None
+
+        # Attempt 1: force json_object
         try:
-            response = self.llm(messages=messages, response_format={"type": "json_object"}, max_tokens=self.max_tokens)
-        except Exception:
-            response = None
+            response = self.llm(
+                messages=messages,
+                response_format={"type": "json_object"},
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            last_err = e
+
+        # Attempt 2: fallback without response_format
+        if response is None:
+            try:
+                response = self.llm(messages=messages, max_tokens=max_tokens)
+            except Exception as e:
+                last_err = e
 
         if response is None:
-            response = self.llm(messages=messages, max_tokens=self.max_tokens)
+            if self.verbose:
+                print(f"LLM ERROR: {last_err!r}")
+                # show prompt even in output mode when debugging failures
+                print("Prompt (debug)\n", system_prompt + user_prompt)
+            return ""
 
+        # Extract content safely
         try:
-            content = response.choices[0].message.content or ""
-        except Exception:
-            content = str(response)
+            content = response.choices[0].message.content
+            if content is None:
+                content = ""
+        except Exception as e:
+            if self.verbose:
+                print(f"LLM RESPONSE PARSE ERROR: {e!r}")
+                print("Raw response repr:", repr(response))
+                print("Prompt (debug)\n", system_prompt + user_prompt)
+            return ""
 
-        # If empty, retry once without json_object
-        if isinstance(content, str) and content.strip() == "":
-            try:
-                response2 = self.llm(messages=messages, max_tokens=self.max_tokens)
-                content2 = response2.choices[0].message.content or ""
-                if content2.strip():
-                    content = content2
-            except Exception:
-                pass
+        if self.verbose:
+            # If content is empty, dump prompt too (so you can reproduce)
+            if content.strip() == "":
+                print("LLM response:\n", repr(content))
+                print("Prompt (debug)\n", system_prompt + user_prompt)
+            else:
+                print("LLM response:\n", content)
 
         return content
 
@@ -380,8 +408,12 @@ class StructureEditor:
                 feedback=fb,
                 required_call_tags=required_call_tags,
             )
-
-            raw = self._call_llm(system_prompt, user_prompt)
+            print("\n[StructureEditor] --- BUILT PROMPTS ---")
+            print("::system_prompt::")
+            print(system_prompt)
+            print("::user_prompt::")
+            print(user_prompt)
+            raw = self.call_llm(system_prompt, user_prompt)
             reasoning, code = self._extract_reasoning_and_code(raw)
 
             errs = self.validate_code(

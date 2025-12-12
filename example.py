@@ -111,12 +111,14 @@ def main():
 
     print("\n--- BEFORE (ORIGINAL) ---")
     print("answer:", got)
-    print(trace.GRAPH.summary())
-    print("\nIR:")
-    pprint(ir, width=120, sort_dicts=False)
+    # print(trace.GRAPH.summary())
+    # print("\nIR:")
+    # pprint(ir, width=120, sort_dicts=False)
 
     # ---------- Structure edit ----------
+
     if got.strip() != expected.strip():
+        print("\n--- STRUCTURE EDIT PROCESS ---")
         editor = StructureEditor(verbose=True)
         res = editor.rewrite_function(
             workflow_fn,              # rewrite CURRENT program
