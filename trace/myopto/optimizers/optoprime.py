@@ -483,6 +483,19 @@ class OptoPrime(Optimizer):
                     # use black formatter for code reformatting
                     if type(formatted_suggestion) == str and 'def' in formatted_suggestion:
                         formatted_suggestion = format_str(formatted_suggestion, mode=FileMode())
+
+                    # If this ParameterNode is a prompt template, enforce placeholder preservation.
+                    placeholders = []
+                    if isinstance(getattr(node, "info", None), dict):
+                        placeholders = node.info.get("placeholders") or []
+                    if placeholders and isinstance(formatted_suggestion, str):
+                        missing = [ph for ph in placeholders if ph not in formatted_suggestion]
+                        if missing:
+                            warnings.warn(
+                                f"Rejecting update for {node.py_name}: missing placeholders {missing}. Keeping old template."
+                            )
+                            formatted_suggestion = node.data
+                            
                     update_dict[node] = type(node.data)(formatted_suggestion)
                 except (ValueError, KeyError) as e:
                     # catch error due to suggestion missing the key or wrong data type
