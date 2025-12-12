@@ -95,7 +95,7 @@ class Graph:
         self._nodes = defaultdict(list)
         # self._levels = defaultdict(list)
 
-    def pretty_summary(self, limit: int | None = None, verbose: bool = False) -> str:
+    def summary(self, limit: int | None = None, verbose: bool = False) -> str:
         """
         Pretty human-readable summary of the trace graph.
 
@@ -162,27 +162,6 @@ class Graph:
                         lines.append(f"        deps: {deps}")
 
         return "\n".join(lines)
-
-
-    def summary(self, limit: int | None = 50) -> str:
-        """
-        Human-readable summary of the current graph.
-        - limit=None prints all nodes
-        - otherwise prints the last `limit` nodes in insertion order (best-effort)
-        """
-        # _nodes is dict[name -> list[Node]]
-        all_nodes = [n for bucket in self._nodes.values() for n in bucket]
-        total = len(all_nodes)
-
-        nodes = all_nodes if limit is None else all_nodes[-limit:]
-
-        lines = [f"Graph size = {total}"]
-        for n in nodes:
-            parents = [p.name for p in getattr(n, "parents", [])]
-            lines.append(f"[L{getattr(n, 'level', '?')}] {n.name} | parents={parents}")
-        return "\n".join(lines)
-
-
 
     def register(self, node):
         """Add a node to the graph.

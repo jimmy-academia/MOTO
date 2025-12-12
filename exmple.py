@@ -1,3 +1,5 @@
+import json
+from pprint import pprint
 from llm import global_llm 
 from myopto.trace.runtime import RuntimeTracer, llm, msg, strip_trace_tags
 from myopto import trace  # for trace.GRAPH.summary()
@@ -41,7 +43,7 @@ with RuntimeTracer(backend=lambda system, user: global_llm(user, system_prompt=s
 
 print('graph summary')
 print(trace.GRAPH.summary(limit=None))
-print('graph pretty_summary')
-print(trace.GRAPH.pretty_summary(limit=None))
 ir = rt.to_ir()
-print(ir)
+# print(ir)
+print('\n\nir')
+pprint(ir, width=120, sort_dicts=False)
