@@ -128,7 +128,7 @@ class StructureEditor:
         self,
         llm: Optional[Any] = None,
         *,
-        max_tokens: int = 4096,
+        max_tokens: int = 12000,
         require_call_tag: bool = True,
         forbid_strip_trace_tags: bool = True,
         forbid_imports: bool = False,
@@ -217,12 +217,9 @@ class StructureEditor:
         self,
         system_prompt: str,
         user_prompt: str,
-        max_tokens: int = 4096,
+        max_tokens: Optional[int] = None,
     ):
         """Call the LLM with a prompt and return the response."""
-        if self.verbose not in (False, "output"):
-            print("Prompt\n", system_prompt + user_prompt)
-
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -230,6 +227,8 @@ class StructureEditor:
 
         response = None
         last_err = None
+        if max_tokens is None:
+            max_tokens = self.max_tokens
 
         # Attempt 1: force json_object
         try:
@@ -240,6 +239,8 @@ class StructureEditor:
             )
         except Exception as e:
             last_err = e
+            if self.verbose:
+                print(f"[StructureEditor--call_llm] Attempt 1: LL!M ERROR: {last_err!r}")
 
         # Attempt 2: fallback without response_format
         if response is None:
@@ -247,13 +248,7 @@ class StructureEditor:
                 response = self.llm(messages=messages, max_tokens=max_tokens)
             except Exception as e:
                 last_err = e
-
-        if response is None:
-            if self.verbose:
-                print(f"LLM ERROR: {last_err!r}")
-                # show prompt even in output mode when debugging failures
-                print("Prompt (debug)\n", system_prompt + user_prompt)
-            return ""
+                print(f"[StructureEditor--call_llm] Attempt 2: LL!M ERROR: {last_err!r}")
 
         # Extract content safely
         try:
@@ -262,19 +257,20 @@ class StructureEditor:
                 content = ""
         except Exception as e:
             if self.verbose:
-                print(f"LLM RESPONSE PARSE ERROR: {e!r}")
+                print(f"[StructureEditor--call_llm] LLM RESPONSE PARS!E ERROR: {e!r}")
                 print("Raw response repr:", repr(response))
-                print("Prompt (debug)\n", system_prompt + user_prompt)
+                # print("Prompt (debug)\n", system_prompt + user_prompt)
             return ""
 
         if self.verbose:
             # If content is empty, dump prompt too (so you can reproduce)
             if content.strip() == "":
-                print("LLM response:\n", repr(content))
-                print("Prompt (debug)\n", system_prompt + user_prompt)
+                print(f"[StructureEditor--call_llm] content is empty!")
             else:
-                print("LLM response:\n", content)
+                print("[StructureEditor--call_llm] LLM response:\n", content)
 
+        # from debug import check
+        # check()
         return content
 
     # ---------- extraction + validation ----------
@@ -409,10 +405,11 @@ class StructureEditor:
                 required_call_tags=required_call_tags,
             )
             print("\n[StructureEditor] --- BUILT PROMPTS ---")
-            print("::system_prompt::")
+            print(":"*40+"::system_prompt::"+":"*40)
             print(system_prompt)
-            print("::user_prompt::")
+            print(":"*40+"::user_prompt::"+":"*40)
             print(user_prompt)
+            print(":"*98)
             raw = self.call_llm(system_prompt, user_prompt)
             reasoning, code = self._extract_reasoning_and_code(raw)
 
