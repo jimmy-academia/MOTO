@@ -9,6 +9,7 @@ from llm import global_llm, configure_llm, request_cost
 from myopto.trace import bundle
 from myopto.optimizers import OptoPrime
 from myopto import trace
+from myopto.trace.utils import render_opt_step
 
 from tqdm import tqdm
 
@@ -18,13 +19,9 @@ from ._moto_prompt import META_PROMPTS
 from utils.logs import logger
 from utils import writef
 
-# --- 1. The Agent (Synchronous Bundle) ---
+from debug import check
 
-
-# traceable_code=True,
-# allow_external_dependencies=True,
-
-@bundle(trainable=False,traceable_code=True,catch_execution_error=True)
+@bundle(trainable=False,traceable_code=True)
 def llm(prompt: str):
     return global_llm(str(prompt))
 
@@ -71,10 +68,10 @@ def concat(*items):
 class MotoScheme(BaseScheme):
     def __init__(self, args):
         super().__init__(args)
+        configure_llm(model=self.args.exe_model, usage=False)
         self.optimizer = OptoPrime(solution_workflow.parameters())
         self.scheme_file = self.scheme_file.with_name("code.py")
         
-        configure_llm(mode="sync", model=self.args.exe_model, usage=False)
 
     async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
@@ -92,7 +89,7 @@ class MotoScheme(BaseScheme):
             #     logger.info(f"Running Mid-Training Validation on epoch {epoch}..")
             #     self.prep_test()
             #     await test_benchmark.run_baseline(self.inference, specific_indices=test_indices)
-            #     configure_llm(mode="sync", model=self.args.exe_model, usage=False)
+            #     configure_llm(usage=False)
 
 
             random.shuffle(train_data)
@@ -103,7 +100,8 @@ class MotoScheme(BaseScheme):
                 batch = train_data[i : i + batch_size]
                 outputs = []
                 feedbacks = []
-                
+                logger.info(trace.GRAPH.summary(limit=15))
+                input()
                 desc = f"Processing Batch {i//batch_size + 1}/{(len(train_data) - 1) // batch_size + 1}"
                 for example in tqdm(batch, ncols=88, desc=desc):
                     problem = example[train_benchmark.q_key]
@@ -130,7 +128,9 @@ class MotoScheme(BaseScheme):
                 batched_feedback = concat(*feedbacks)   # MessageNode[str]
 
                 self.optimizer.zero_feedback()
-                self.optimizer.backward(batched_outputs, batched_feedback.data)
+                self.optimizer.backward(batched_outputs, batched_feedback.data, visualize=True)
+                render_opt_step(0, self.optimizer)
+                input('pause')
                 self.optimizer.step()
 
             # Save Checkpoint

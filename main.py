@@ -19,7 +19,7 @@ def get_parser():
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model
-    parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-mini', help='Optimizer LLM')
+    parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-nano', help='Optimizer LLM')
     parser.add_argument('-e', '--exe_model', type=str, default='gpt-5-nano', help='Executor LLM')
     # parser.add_argument('-e', '--exe_model', type=str, default='gpt-4o-mini', help='Executor LLM')
     parser.add_argument('-m', '--mode', type=str, default='baseline', help='mode for custome moto optimization, choose `baseline` or `ABC...`')
@@ -88,10 +88,10 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    args.train_limit = 20
+    args.train_limit = 1
     args.test_limit = 100
-    args.batch_size = 5
-    args.epochs = 10
+    args.batch_size = 1
+    args.epochs = 1
     args.val_interval = 1
 
     logger.info(f" --- 🤖 Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")

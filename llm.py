@@ -6,8 +6,6 @@ from typing import Optional
 from openai import OpenAI, AsyncOpenAI
 
 # Global mode: "sync" for training, "async" for testing
-_llm_mode: str = "sync"
-_mode_lock = threading.Lock()
 _track_usage: bool = False
 
 # Global total cost (USD) across all calls
@@ -74,13 +72,7 @@ class LLMClient:
         self.max_tokens = max_tokens
         self.api_key = get_key()
         self.client = OpenAI(api_key=self.api_key)
-        self._async_client: Optional[AsyncOpenAI] = None
-
-    def _get_async_client(self) -> AsyncOpenAI:
-        if self._async_client is None:
-            self._async_client = AsyncOpenAI(api_key=self.api_key)
-        return self._async_client
-
+        
     def _build_messages(self, prompt: str, system_prompt: Optional[str]):
         msgs = []
         if system_prompt:
@@ -89,30 +81,24 @@ class LLMClient:
         return msgs
 
     def answer_sync(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        resp = self.client.chat.completions.create(
+        kwargs = dict(
             model=self.model,
-            messages=self._build_messages(prompt, system_prompt),
-            max_tokens=self.max_tokens,
+            messages=self._build_messages(prompt, system_prompt)
         )
+        if 'gpt-5' in self.model:
+            kwargs["max_completion_tokens"] = self.max_tokens
+        else:
+            kwargs["max_tokens"] = self.max_tokens
+
+        resp = self.client.chat.completions.create(**kwargs)
+
         _compute_and_update_cost(resp, self.model)
         return resp.choices[0].message.content.strip()
         
-    async def answer_async(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        client = self._get_async_client()
-        resp = await client.chat.completions.create(
-            model=self.model,
-            messages=self._build_messages(prompt, system_prompt),
-            max_tokens=self.max_tokens,
-        )
-        _compute_and_update_cost(resp, self.model)
-        return resp.choices[0].message.content.strip()
-
-
 _GLOBAL_CLIENT = LLMClient(model="gpt-4o-mini")
 
-
 def configure_llm(
-    mode: str = "sync",
+    # mode: str = "sync",
     model: Optional[str] = None,
     max_tokens: Optional[int] = None,
     usage: Optional[bool] = None,
@@ -124,41 +110,19 @@ def configure_llm(
     model: optional new model name
     usage: if not None, turn global cost tracking on/off
     """
-    global _llm_mode, _GLOBAL_CLIENT, _track_usage
+    global _GLOBAL_CLIENT, _track_usage
 
-    if mode not in ("sync", "async"):
-        raise ValueError(f"Invalid mode: {mode}")
+    if usage is not None:
+        _track_usage = usage
 
-    with _mode_lock:
-        _llm_mode = mode
-
-        if usage is not None:
-            _track_usage = usage
-
-        if model is not None or max_tokens is not None:
-            _GLOBAL_CLIENT = LLMClient(
-                model=model or _GLOBAL_CLIENT.model,
-                max_tokens=max_tokens or _GLOBAL_CLIENT.max_tokens,
-            )
-
-
+    if model is not None or max_tokens is not None:
+        _GLOBAL_CLIENT = LLMClient(
+            model=model or _GLOBAL_CLIENT.model,
+            max_tokens=max_tokens or _GLOBAL_CLIENT.max_tokens,
+        )
 
 def global_llm(prompt: str, system_prompt: Optional[str] = None) -> str:
-    """
-    Global wrapper used inside solution_workflow.
-
-    - If configured sync: blocks.
-    - If configured async: uses AsyncOpenAI under the hood via asyncio.run().
-      Must be called from a context with no running event loop
-      (i.e., from worker threads via asyncio.to_thread).
-    """
-    mode = _llm_mode   # read under the assumption config is set before use
-
-    if mode == "sync":
-        return _GLOBAL_CLIENT.answer_sync(prompt, system_prompt)
-
-    if mode == "async":
-        # Called from a worker thread during inference, so nested loop is OK.
-        return asyncio.run(_GLOBAL_CLIENT.answer_async(prompt, system_prompt))
-
+    return _GLOBAL_CLIENT.answer_sync(prompt, system_prompt)
     raise RuntimeError(f"Unknown LLM mode: {mode}")
+
+
