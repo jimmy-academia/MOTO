@@ -7,7 +7,7 @@ import re
 import heapq
 
 
-def node(data, name=None, trainable=False, description=None, constraint=None):
+def node(data, name=None, trainable=False, description=None, constraint=None, info=None):
     """Create a Node object from data.
 
     Args:
@@ -42,6 +42,7 @@ def node(data, name=None, trainable=False, description=None, constraint=None):
             trainable=True,
             description=description,
             constraint=constraint,
+            info=info,
         )
     else:
         if isinstance(data, Node):
@@ -49,7 +50,7 @@ def node(data, name=None, trainable=False, description=None, constraint=None):
                 warnings.warn(f"Name {name} is ignored because data is already a Node.")
             return data
         else:
-            return Node(data, name=name, description=description, constraint=constraint)
+            return Node(data, name=name, description=description, constraint=constraint, info=info)
 
 
 NAME_SCOPES = []  # A stack of name scopes
@@ -93,6 +94,95 @@ class Graph:
             del node
         self._nodes = defaultdict(list)
         # self._levels = defaultdict(list)
+
+    def pretty_summary(self, limit: int | None = None, verbose: bool = False) -> str:
+        """
+        Pretty human-readable summary of the trace graph.
+
+        Args:
+            limit: if not None, only show last N nodes (after sorting)
+            verbose: show full parent lists and callsite info
+        """
+
+        # Flatten name -> [nodes] buckets
+        all_nodes = [n for bucket in self._nodes.values() for n in bucket]
+
+        # Sort by (level, insertion order fallback via name index)
+        all_nodes.sort(key=lambda n: (getattr(n, "level", 0), n.name))
+
+        if limit is not None:
+            all_nodes = all_nodes[-limit:]
+
+        def is_prompt(n):
+            return n.name.startswith("prompt_")
+
+        def is_llm(n):
+            return n.name.startswith("llm")
+
+        def is_input(n):
+            return not is_prompt(n) and not is_llm(n)
+
+        inputs = [n for n in all_nodes if is_input(n)]
+        prompts = [n for n in all_nodes if is_prompt(n)]
+        llms = [n for n in all_nodes if is_llm(n)]
+
+        lines = []
+        lines.append(f"TraceGraph ({len(all_nodes)} nodes)")
+
+        # --- Inputs ---
+        if inputs:
+            lines.append("\nInputs")
+            for n in inputs:
+                lines.append(f"  [L{n.level}] {n.name}")
+
+        # --- Prompt templates ---
+        if prompts:
+            lines.append("\nPrompt Templates")
+            for n in prompts:
+                cs = n.info.get("callsite", {})
+                loc = f"{cs.get('function','?')}:{cs.get('lineno','?')}"
+                lines.append(f"  [L{n.level}] {n.name}   ({loc})")
+
+        # --- LLM calls ---
+        if llms:
+            lines.append("\nLLM Calls")
+            for n in llms:
+                cs = n.info.get("callsite", {})
+                loc = f"{cs.get('function','?')}:{cs.get('lineno','?')}"
+                lines.append(f"  [L{n.level}] {n.name}   ({loc})")
+
+                parents = getattr(n, "parents", [])
+                if parents:
+                    for p in parents:
+                        lines.append(f"        ↳ {p.name}")
+
+                if verbose:
+                    deps = n.info.get("trace_deps")
+                    if deps:
+                        lines.append(f"        deps: {deps}")
+
+        return "\n".join(lines)
+
+
+    def summary(self, limit: int | None = 50) -> str:
+        """
+        Human-readable summary of the current graph.
+        - limit=None prints all nodes
+        - otherwise prints the last `limit` nodes in insertion order (best-effort)
+        """
+        # _nodes is dict[name -> list[Node]]
+        all_nodes = [n for bucket in self._nodes.values() for n in bucket]
+        total = len(all_nodes)
+
+        nodes = all_nodes if limit is None else all_nodes[-limit:]
+
+        lines = [f"Graph size = {total}"]
+        for n in nodes:
+            parents = [p.name for p in getattr(n, "parents", [])]
+            lines.append(f"[L{getattr(n, 'level', '?')}] {n.name} | parents={parents}")
+        return "\n".join(lines)
+
+
 
     def register(self, node):
         """Add a node to the graph.

@@ -8,6 +8,9 @@ import myopto.trace.operators as operators
 from myopto.trace.nodes import Node, GRAPH
 from myopto.trace.nodes import node
 
+# runtime additions
+from myopto.trace.runtime import RuntimeTracer, Msg, llm, msg, strip_trace_tags, extract_trace_ids
+ 
 
 class stop_tracing:
     """A contextmanager to disable tracing."""
@@ -31,4 +34,12 @@ __all__ = [
     "model",
     "apply_op",
     "propagators",
+
+# runtime additions
+    "RuntimeTracer",
+    "Msg",
+    "llm",
+    "msg",
+    "strip_trace_tags",
+    "extract_trace_ids",
 ]
