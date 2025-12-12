@@ -6,6 +6,7 @@ import hashlib
 import inspect
 import re
 import uuid
+import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -95,6 +96,23 @@ def _hash_callsite(callsite: Dict[str, Any]) -> str:
     raw = f"{callsite.get('filename')}:{callsite.get('lineno')}:{callsite.get('function')}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
 
+def _normalize_call_tag(call_tag: str) -> str:
+    """
+    Turn an arbitrary tag into a stable, name-safe identifier.
+    We keep some readability + add a hash suffix to avoid collisions.
+    """
+    safe = re.sub(r"[^A-Za-z0-9_]+", "_", call_tag).strip("_")
+    if not safe:
+        safe = "tag"
+    if safe[0].isdigit():
+        safe = f"tag_{safe}"
+    h = hashlib.sha1(call_tag.encode("utf-8")).hexdigest()[:10]
+    return f"{safe}_{h}"
+
+
+def _template_key(callsite_key: str, call_tag: Optional[str]) -> str:
+    return _normalize_call_tag(call_tag) if call_tag else callsite_key
+
 
 class Msg(str):
     """
@@ -121,14 +139,14 @@ _ACTIVE_TRACER: contextvars.ContextVar[Optional["RuntimeTracer"]] = contextvars.
 )
 
 
-def _default_backend(system_prompt: Optional[str], user_prompt: str) -> str:
+def _default_backend(system_prompt: Optional[str], user_prompt: str, llm: Any = None) -> str:
     """
     Default backend mirrors the existing operator style that builds messages and reads choices[0].message.content.
     (See trace/myopto/trace/operators.py call_llm). 
     """
     from myopto.utils.llm import LLM
 
-    llm = LLM()
+    llm = llm or LLM()
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -154,11 +172,21 @@ class RuntimeTracer:
     def __init__(
         self,
         *,
+        executor_llm: Optional[Any] = None,
         backend: Optional[Callable[[Optional[str], str], str]] = None,
         clear_graph_on_enter: bool = True,
         trainable_prompt_templates: bool = True,
     ):
-        self._backend = backend or _default_backend
+        # If backend isn't provided, we default to using executor_llm (NOT the optimizer model).
+        if backend is None:
+            if executor_llm is None:
+                from myopto.utils.llm import LLM
+                executor_llm = LLM()
+            self._backend = lambda sys_p, user_p: _default_backend(sys_p, user_p, llm=executor_llm)
+        else:
+            self._backend = backend
+
+        self.executor_llm = executor_llm
         self.clear_graph_on_enter = clear_graph_on_enter
         self.trainable_prompt_templates = trainable_prompt_templates
 
@@ -172,6 +200,16 @@ class RuntimeTracer:
         self.llm_nodes: List[MessageNode] = []
 
         self._token = None
+
+    def parameters(self) -> List[ParameterNode]:
+        """Trainable prompt template parameters collected so far."""
+        return list(self.prompt_templates.values())
+
+    @property
+    def output_node(self) -> Optional[MessageNode]:
+        """Heuristic: last LLM node executed in this tracer."""
+        return self.llm_nodes[-1] if self.llm_nodes else None
+
 
     def __enter__(self) -> "RuntimeTracer":
         self._token = _ACTIVE_TRACER.set(self)
@@ -213,16 +251,17 @@ class RuntimeTracer:
 
         callsite = _get_callsite()
         callsite_key = _hash_callsite(callsite)
+        key = _template_key(callsite_key, call_tag)
 
         # Parse dependencies from tags + build template representation
         prompt_tagged = str(prompt)
         template_str, slots = _prompt_to_template(prompt_tagged)
 
-        # Trainable template node (identity = callsite)
+        # Trainable template node (identity = call_tag if provided, else callsite)
         if trainable_prompt_template is None:
             trainable_prompt_template = self.trainable_prompt_templates
 
-        tmpl_node = self.prompt_templates.get(callsite_key)
+        tmpl_node = self.prompt_templates.get(key)
         if tmpl_node is None:
             placeholders = [s.placeholder for s in slots]
             constraint = (
@@ -232,13 +271,38 @@ class RuntimeTracer:
             )
             tmpl_node = node(
                 template_str,
-                name=f"prompt_{callsite_key}",
+                name=f"prompt_{key}",
                 trainable=trainable_prompt_template,
-                description=f"[prompt_template] {callsite.get('function')}:{callsite.get('lineno')}",
+                description=f"[prompt_template] {callsite.get('function')}:{callsite.get('lineno')}"
+                    + (f" tag={call_tag}" if call_tag else ""),
                 constraint=constraint,
-                info={"callsite": callsite, "placeholders": placeholders},
+                info={"callsite": callsite, "placeholders": placeholders, "call_tag": call_tag, "template_key": key},
+
             )
-            self.prompt_templates[callsite_key] = tmpl_node
+            self.prompt_templates[key] = tmpl_node
+        else:
+            # If placeholder shape changed (rare, but can happen with rewrites), keep things runnable.
+            new_placeholders = [s.placeholder for s in slots]
+            old_placeholders = (tmpl_node.info.get("placeholders") if isinstance(tmpl_node.info, dict) else None) or []
+            if old_placeholders != new_placeholders:
+                if len(old_placeholders) == len(new_placeholders) and len(old_placeholders) > 0:
+                    # preserve learned wording, just rename tokens by position
+                    rewritten = str(tmpl_node.data)
+                    for old_ph, new_ph in zip(old_placeholders, new_placeholders):
+                        rewritten = rewritten.replace(old_ph, new_ph)
+                    tmpl_node._data = rewritten  # internal, but ok for ParameterNode
+                else:
+                    # fallback: reset to freshly derived template_str
+                    tmpl_node._data = template_str
+                tmpl_node.info["placeholders"] = new_placeholders
+                tmpl_node._constraint = (
+                    "You are editing a prompt template.\n"
+                    "Do NOT remove or alter these placeholder tokens (keep EXACT text):\n"
+                    + "\n".join(new_placeholders)
+                )
+
+            # Allow callers to flip trainability at runtime.
+            tmpl_node.trainable = bool(trainable_prompt_template)
 
         # Slot resolution + dependency nodes
         values: Dict[str, str] = {}
@@ -266,9 +330,11 @@ class RuntimeTracer:
         for i, dep_node in enumerate(deps.values()):
             inputs[f"dep_{i}"] = dep_node
 
-        # Node naming: stable "llm" plus optional explicit tag
-        name = call_tag or "llm"
-        desc = f"[llm] {name} @ {callsite.get('function')}:{callsite.get('lineno')}"
+        # Node naming: if call_tag exists, name becomes llm_<taghash> so identity survives line moves.
+        llm_base_name = f"llm_{key}" if call_tag else "llm"
+        desc_tag = call_tag or "llm"
+        desc = f"[llm] {desc_tag} @ {callsite.get('function')}:{callsite.get('lineno')}"
+
 
         info: Dict[str, Any] = {
             "callsite": callsite,
@@ -277,11 +343,13 @@ class RuntimeTracer:
             "prompt_rendered": rendered,
             "system_prompt": system_prompt,
             "trace_deps": list(deps.keys()),
+            "call_tag": call_tag,
+            "template_key": key,
         }
         if extra_info:
             info.update(extra_info)
 
-        llm_node = MessageNode(response, inputs=inputs, description=desc, name="llm", info=info)
+        llm_node = MessageNode(response, inputs=inputs, description=desc, name=llm_base_name, info=info)
         self.llm_nodes.append(llm_node)
 
         # Wrap output as Msg
@@ -298,6 +366,8 @@ class RuntimeTracer:
         for n in self.llm_nodes:
             cs = n.info.get("callsite") or {}
             tmpl = n.info.get("prompt_template")
+            call_tag = n.info.get("call_tag")
+            template_key = n.info.get("template_key")
             nodes.append({
                 "id": n.name,
                 "level": getattr(n, "level", None),
@@ -306,6 +376,8 @@ class RuntimeTracer:
                     "lineno": cs.get("lineno"),
                     "filename": cs.get("filename"),
                 },
+                "call_tag": call_tag,
+                "template_key": template_key,
                 "template": {
                     "name": getattr(tmpl, "name", None),
                     "placeholders": (tmpl.info.get("placeholders") if tmpl is not None else None),
