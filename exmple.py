@@ -6,8 +6,9 @@ from pprint import pprint
 
 os.environ.setdefault("TRACE_DEFAULT_LLM_BACKEND", "LiteLLM")
 os.environ.setdefault("TRACE_LITELLM_MODEL", "gpt-5-nano")
-os.environ.setdefault("LITELLM_LOG", "INFO")
+os.environ.setdefault("LITELLM_LOG", "DEBUG") #"INFO"
 os.environ["OPENAI_API_KEY"] = get_key()
+
 
 from myopto.trace.runtime import RuntimeTracer, llm, msg, strip_trace_tags
 from myopto import trace
@@ -18,7 +19,7 @@ def workflow(problem_text: str) -> str:
     problem = msg(problem_text, name="problem")
 
     attempts = []
-    for i in range(3):
+    for i in range(2):
         attempt = llm(
             f"Attempt {i+1}: Solve the problem.\n"
             f"Problem:\n{problem}\n"

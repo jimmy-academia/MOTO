@@ -575,16 +575,51 @@ class OptoPrime(Optimizer):
             {"role": "user", "content": user_prompt},
         ]
 
-        try:  # Try tp force it to be a json object
+        response = None
+        last_err = None
+
+        # Attempt 1: force json_object
+        try:
             response = self.llm(
                 messages=messages,
                 response_format={"type": "json_object"},
                 max_tokens=max_tokens,
             )
-        except Exception:
-            response = self.llm(messages=messages, max_tokens=max_tokens)
-        response = response.choices[0].message.content
+        except Exception as e:
+            last_err = e
+
+        # Attempt 2: fallback without response_format
+        if response is None:
+            try:
+                response = self.llm(messages=messages, max_tokens=max_tokens)
+            except Exception as e:
+                last_err = e
+
+        if response is None:
+            if verbose:
+                print(f"LLM ERROR: {last_err!r}")
+                # show prompt even in output mode when debugging failures
+                print("Prompt (debug)\n", system_prompt + user_prompt)
+            return ""
+
+        # Extract content safely
+        try:
+            content = response.choices[0].message.content
+            if content is None:
+                content = ""
+        except Exception as e:
+            if verbose:
+                print(f"LLM RESPONSE PARSE ERROR: {e!r}")
+                print("Raw response repr:", repr(response))
+                print("Prompt (debug)\n", system_prompt + user_prompt)
+            return ""
 
         if verbose:
-            print("LLM response:\n", response)
-        return response
+            # If content is empty, dump prompt too (so you can reproduce)
+            if content.strip() == "":
+                print("LLM response:\n", repr(content))
+                print("Prompt (debug)\n", system_prompt + user_prompt)
+            else:
+                print("LLM response:\n", content)
+
+        return content
