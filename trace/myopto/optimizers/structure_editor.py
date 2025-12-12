@@ -50,9 +50,11 @@ def _callsite_brief(cs: Dict[str, Any]) -> str:
 # -----------------------------
 # Validation
 # -----------------------------
-def _find_function_def(tree: ast.AST, func_name: str) -> Optional[ast.FunctionDef]:
+
+def _find_function_def(tree: ast.AST, func_name: str):
+    # Find both sync + async defs anywhere in the module (including inside if/try)
     for n in ast.walk(tree):
-        if isinstance(n, ast.FunctionDef) and n.name == func_name:
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == func_name:
             return n
     return None
 
@@ -250,14 +252,21 @@ class StructureEditor:
     # ---------- extraction + validation ----------
     def _extract_reasoning_and_code(self, raw: str) -> Tuple[str, str]:
         obj = _extract_json_object(raw)
-        if isinstance(obj, dict) and "code" in obj:
+        if isinstance(obj, dict):
             reasoning = str(obj.get("reasoning", "")).strip()
-            code = str(obj.get("code", "")).strip()
-            code = _strip_code_fences(code)
-            return reasoning, code
+
+            # Preferred key
+            if "code" in obj and isinstance(obj["code"], str):
+                code = _strip_code_fences(obj["code"]).strip()
+                return reasoning, code
+
+            # Common deviation: model puts code in "answer"
+            if "answer" in obj and isinstance(obj["answer"], str) and "def " in obj["answer"]:
+                code = _strip_code_fences(obj["answer"]).strip()
+                return reasoning, code
 
         # fallback: treat raw as code
-        return "", _strip_code_fences(raw)
+        return "", _strip_code_fences(raw).strip()
 
     def validate_code(
         self,
@@ -274,12 +283,14 @@ class StructureEditor:
 
         try:
             tree = ast.parse(code)
+            all_defs = [n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+
         except SyntaxError as e:
             return [f"SyntaxError: {e}"]
 
         fn = _find_function_def(tree, func_name)
         if fn is None:
-            return [f"Missing function def '{func_name}'"]
+            return [f"Missing function def {func_name!r}. Found defs: {all_defs}"]
 
         # Signature check (basic): compare arg names/count only
         # We enforce exact signature string in prompt, but validate roughly here.
@@ -381,6 +392,14 @@ class StructureEditor:
             )
 
             if self.verbose:
+                print("\n[StructureEditor] --- RAW RESPONSE (repr head) ---")
+                print(repr(raw[:800]))
+                print("\n[StructureEditor] --- EXTRACTED CODE (first 40 lines) ---")
+                code_head = "\n".join(code.splitlines()[:40])
+                print(code_head)
+                print("\n[StructureEditor] --- EXTRACTED CODE STARTS WITH ---")
+                print(repr(code[:80]))
+
                 print(f"\n[StructureEditor] attempt={attempt} ok={not errs}")
                 if errs:
                     print("[StructureEditor] errors:")
