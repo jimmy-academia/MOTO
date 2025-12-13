@@ -1,3 +1,4 @@
+# trace/myopto/optimizers/structure_editor.py
 from __future__ import annotations
 
 import ast
