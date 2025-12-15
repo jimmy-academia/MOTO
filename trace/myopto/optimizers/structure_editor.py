@@ -135,7 +135,7 @@ class StructureEditor:
         forbid_imports: bool = False,
         verbose: bool = False,
     ):
-        self.llm = llm or LLM()
+        self.llm = llm or LLM(role="optimizer")
         self.max_tokens = max_tokens
         self.require_call_tag = require_call_tag
         self.forbid_strip_trace_tags = forbid_strip_trace_tags

@@ -146,7 +146,7 @@ def _default_backend(system_prompt: Optional[str], user_prompt: str, llm: Any = 
     """
     from myopto.utils.llm import LLM
 
-    llm = llm or LLM()
+    llm = llm or LLM(role="executor")
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -181,7 +181,7 @@ class RuntimeTracer:
         if backend is None:
             if executor_llm is None:
                 from myopto.utils.llm import LLM
-                executor_llm = LLM()
+                executor_llm = LLM(role="executor")
             self._backend = lambda sys_p, user_p: _default_backend(sys_p, user_p, llm=executor_llm)
         else:
             self._backend = backend
