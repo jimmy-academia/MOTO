@@ -15,7 +15,8 @@ def get_parser():
     # moto, optopy, optotext, (aflow)
     
     past = ['math', 'gsm8k', 'drop', 'hotpotqa', 'humaneval', 'mbpp']
-    parser.add_argument('-b', '--benchmark', type=str, choices=past, help='Dataset name', default='math')
+    new = ['clovertoy']
+    parser.add_argument('-b', '--benchmark', type=str, choices=past+new, help='Dataset name', default='math')
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model

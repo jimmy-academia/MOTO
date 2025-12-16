@@ -8,7 +8,10 @@ from .drop import DROPBenchmark
 from .hotpotqa import HotpotQABenchmark
 from .humaneval import HumanEvalBenchmark
 from .mbpp import MBPPBenchmark
-# Add other imports as needed (e.g., ._bbh, ._gpqa) if you want to support them
+
+# new datasets
+from .clovertoy import CloverToyBenchmark
+
 
 DATASET_CONFIG = {
     "math": {
@@ -40,7 +43,13 @@ DATASET_CONFIG = {
         "filename": "mbpp",
         "keys": {"q": "prompt", "a": "code"},
         "extractor": "direct"
-    }
+    },
+    # new datasets
+    "clovertoy": {
+        "filename": "clovertoy",
+        "keys": {"q": "problem", "a": "output"},
+        "extractor": "direct",
+    },
 }
 
 # Map dataset names to their corresponding classes
@@ -51,6 +60,8 @@ BENCHMARK_REGISTRY = {
     "hotpotqa": HotpotQABenchmark,
     "humaneval": HumanEvalBenchmark,
     "mbpp": MBPPBenchmark,
+    # new datasets
+    "clovertoy": CloverToyBenchmark,
 }
 
 def get_benchmark(dataset_name: str, split: str = "test", data_dir: str = "data", log_dir: str = "logs"):

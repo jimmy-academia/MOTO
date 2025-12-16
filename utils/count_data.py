@@ -19,6 +19,9 @@ DATASET_SIZES = {
     'mbpp_public_test.jsonl': 427,
     'mbpp_test.jsonl': 341,
     'mbpp_validate.jsonl': 86,
+    # new
+    'clovertoy_test.jsonl': 10,
+    'clovertoy_validate.jsonl': 30,
 }
 
 # ==============================================================================
