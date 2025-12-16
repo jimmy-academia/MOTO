@@ -14,7 +14,7 @@ from myopto.trace.utils import render_opt_step
 from tqdm import tqdm
 
 from .base import BaseScheme
-from ._moto_prompt import META_PROMPTS
+from .prompt.moto import META_PROMPTS
 
 from utils.logs import logger
 from utils import writef
