@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .benchmark import BaseBenchmark
+from utils.logs import logger
+
 
 # -----------------------------------------------------------------------------
 # Policies (Context A/B/C for validate; D for test)
@@ -215,6 +218,27 @@ def make_problem_prompt(context_id: str, policy_text: str, raw_ticket: str) -> s
         "- Output MUST match this exact schema (keys must exist, no extra keys):\n"
         f"{schema}\n"
     )
+
+# --- CloverToy prompt parser (for scheme + benchmark fallback parsing) ---
+_PROMPT_RE = re.compile(
+    r"=== POLICY \(context_id=(?P<context_id>[A-Za-z])\) ===\n(?P<context>.*?)\n\n=== INPUT TICKET ===\n(?P<ticket>.*?)\n\n=== OUTPUT REQUIREMENTS ===",
+    re.S,
+)
+
+def split_problem_prompt(problem_text: str) -> Tuple[str, str, str]:
+    """
+    Parse the canonical CloverToy prompt into (context_id, policy_text, raw_ticket).
+    Returns ("", "", problem_text) if it doesn't match the template.
+    """
+    m = _PROMPT_RE.search(problem_text or "")
+    if not m:
+        return "", "", (problem_text or "").strip()
+    return (
+        (m.group("context_id") or "").strip(),
+        (m.group("context") or "").strip(),
+        (m.group("ticket") or "").strip(),
+    )
+
 
 
 def generate_gt(context_id: str, policy_text: str, ticket: Ticket) -> Dict[str, Any]:
@@ -479,118 +503,118 @@ def verify_output(context_id: str, policy_text: str, ticket: Ticket, pred_text: 
     }
 
 
-# -----------------------------------------------------------------------------
-# Benchmark class (glue)
-# -----------------------------------------------------------------------------
-# We keep imports flexible because repos sometimes name the base differently.
-try:
-    from .base import BaseBenchmark  # type: ignore
-except Exception:
-    try:
-        from ._base import BaseBenchmark  # type: ignore
-    except Exception:
-        BaseBenchmark = object  # fallback for smoke scripts / local testing
-
-
 class CloverToyBenchmark(BaseBenchmark):
     """
-    Context-driven rule-following benchmark with context-disjoint split:
-      - validate: contexts A/B/C (same 10 tickets each => 30 samples)
-      - test: context D (same 10 tickets => 10 samples)
+    BaseBenchmark-compatible CloverToy benchmark.
 
-    Data format: jsonl with at least keys:
-      - problem: prompt string
-      - output: GT output string (used only for offline eval)
-      - context_id, context, input (used by verifier)
+    Notes:
+    - Uses deterministic verifier (verify_output) for scoring.
+    - Default concurrency is forced to 1 because RuntimeTracer is backed by a global graph.
     """
 
-    name = "clovertoy"
-
-    def __init__(self, split: str = "validate", data_dir: str = "data", **kwargs: Any):
-        self.split = split
-        self.data_dir = data_dir
-        self.path = Path(data_dir) / f"clovertoy_{split}.jsonl"
-        self.samples = self._load_jsonl(self.path)
-
-    @staticmethod
-    def _load_jsonl(path: Path) -> List[Dict[str, Any]]:
-        if not path.exists():
-            raise FileNotFoundError(f"Missing dataset file: {path}")
-        out: List[Dict[str, Any]] = []
-        with path.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                out.append(json.loads(line))
-        return out
-
-    def __len__(self) -> int:
-        return len(self.samples)
+    def __init__(self, name: str, file_path: Path, log_path: Path):
+        super().__init__(name, file_path, log_path)
+        # Clover scheme uses a global trace graph; keep evaluation single-threaded by default.
+        self.max_concurrent_tasks = int(os.environ.get("CLOVERTOY_MAX_CONCURRENCY", "1"))
 
     def get_result_columns(self) -> List[str]:
         return [
             "ticket_id",
             "context_id",
-            "score",
-            "score_with_cost",
             "passed",
-            "cost",
+            "score",            # solve rate (0/1)
+            "score_raw",        # verifier fractional score
+            "score_with_cost",
+            "iterations",
+            "sample_cost_usd",  # per-sample cost
+            "cost",             # cumulative cost (for legacy BaseBenchmark aggregation)
             "tags",
             "failed_checks",
             "prediction",
         ]
 
-    def calculate_score(self, expected_output: str, prediction: str, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        # We deliberately ignore expected_output for scoring; we use the deterministic verifier only.
-        meta = meta or {}
-        ctx_id = meta.get("context_id", "")
-        ctx = meta.get("context", "")
-        raw_input = meta.get("input", "")
-        ticket = parse_ticket(raw_input)
-        return verify_output(ctx_id, ctx, ticket, prediction, cost_usd=float(meta.get("cost_usd", 0.0)))
+    def calculate_score(self, expected_output: str, prediction: str) -> float:
+        # Not used (we override evaluate_problem), but required by BaseBenchmark.
+        try:
+            obj = json.loads(prediction)
+            return 1.0 if isinstance(obj, dict) else 0.0
+        except Exception:
+            return 0.0
 
-    def evaluate_problem(self, sample: Dict[str, Any], agent: Callable[[str], Any]) -> Dict[str, Any]:
-        prompt = sample["problem"]
-        ctx_id = sample.get("context_id", "")
-        ctx = sample.get("context", "")
-        raw_input = sample.get("input", "")
-        ticket = parse_ticket(raw_input)
+    async def evaluate_problem(self, problem: Dict[str, Any], agent) -> Tuple[Any, ...]:
+        prompt = problem.get(self.q_key, "")
 
-        pred_text = ""
-        cost = 0.0
+        # Prefer structured fields if present in the JSONL record.
+        context_id = problem.get("context_id", "")
+        policy_text = problem.get("context", "")
+        raw_ticket = problem.get("input", "")
 
-        # Support a few agent return conventions:
-        # 1) pred_text
-        # 2) (pred_text, cost)
-        # 3) {"prediction": ..., "cost": ...}
-        out = agent(prompt)
-        if isinstance(out, tuple) and len(out) >= 1:
-            pred_text = str(out[0])
-            if len(out) >= 2:
-                try:
-                    cost = float(out[1])
-                except Exception:
-                    cost = 0.0
-        elif isinstance(out, dict):
-            pred_text = str(out.get("prediction", out.get("text", "")))
-            try:
-                cost = float(out.get("cost", out.get("cost_usd", 0.0)))
-            except Exception:
-                cost = 0.0
+        # Fallback: parse from prompt if record is missing fields.
+        if not (context_id and policy_text and raw_ticket):
+            p_ctx_id, p_policy, p_ticket = split_problem_prompt(prompt)
+            context_id = context_id or p_ctx_id
+            policy_text = policy_text or p_policy
+            raw_ticket = raw_ticket or p_ticket
+
+        ticket = parse_ticket(raw_ticket)
+
+        # Agent call: (prediction, cost) or (prediction, cost, meta)
+        scheme = getattr(agent, "__self__", None)
+        if scheme is not None and hasattr(scheme, "inference_with_meta"):
+            prediction, cost, meta = await scheme.inference_with_meta(prompt)
         else:
-            pred_text = str(out)
+            prediction, cost = await agent(prompt)
+            meta = {}
 
-        report = verify_output(ctx_id, ctx, ticket, pred_text, cost_usd=cost)
+        prediction = (prediction or "").strip()
+        iterations = int(meta.get("iterations", 1))
+        sample_cost_usd = float(meta.get("sample_cost_usd", 0.0))
 
-        return {
-            "ticket_id": ticket.ticket_id,
-            "context_id": ctx_id,
-            "score": report["score"],
-            "score_with_cost": report["score_with_cost"],
-            "passed": report["passed"],
-            "cost": cost,
-            "tags": ",".join(report.get("tags", [])),
-            "failed_checks": json.dumps(report.get("failed_checks", []), ensure_ascii=False),
-            "prediction": pred_text.strip(),
-        }
+        report = verify_output(context_id, policy_text, ticket, prediction, cost_usd=sample_cost_usd)
+
+        passed = bool(report.get("passed", False))
+        score_raw = float(report.get("score", 0.0))
+        score_with_cost = float(report.get("score_with_cost", score_raw))
+        score = 1.0 if passed else 0.0
+
+        tags = report.get("tags", [])
+        failed_checks = report.get("failed_checks", [])
+
+        return (
+            ticket.ticket_id,
+            context_id,
+            passed,
+            score,
+            score_raw,
+            score_with_cost,
+            iterations,
+            sample_cost_usd,
+            float(cost),
+            ",".join(tags) if isinstance(tags, list) else str(tags),
+            json.dumps(failed_checks, ensure_ascii=False),
+            prediction,
+        )
+
+    def save_results_to_csv(self, results: List[Tuple[Any, ...]]) -> Tuple[float, float, float]:
+        import pandas as pd
+
+        columns = self.get_result_columns()
+        df = pd.DataFrame(results, columns=columns)
+        self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(self.log_path, index=False)
+
+        solve_rate = float(df["passed"].mean()) if len(df) else 0.0
+        avg_iters = float(df["iterations"].mean()) if len(df) else 0.0
+
+        # Cost: prefer per-sample sum if available
+        if "sample_cost_usd" in df.columns and df["sample_cost_usd"].notna().any():
+            total_cost = float(df["sample_cost_usd"].fillna(0.0).sum())
+        else:
+            total_cost = float(df["cost"].max()) if len(df) else 0.0
+        avg_cost = total_cost / len(df) if len(df) else 0.0
+
+        logger.info(
+            f"[clovertoy] solve_rate={solve_rate:.3f} avg_iters={avg_iters:.2f} "
+            f"avg_cost=${avg_cost:.6f} total_cost=${total_cost:.6f}"
+        )
+        return solve_rate, avg_cost, total_cost

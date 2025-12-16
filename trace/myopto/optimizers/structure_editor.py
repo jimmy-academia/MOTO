@@ -249,7 +249,8 @@ class StructureEditor:
                 response = self.llm(messages=messages, max_tokens=max_tokens)
             except Exception as e:
                 last_err = e
-                print(f"[StructureEditor--call_llm] Attempt 2: LL!M ERROR: {last_err!r}")
+                if self.verbose:
+                    print(f"[StructureEditor--call_llm] Attempt 2: LL!M ERROR: {last_err!r}")
 
         # Extract content safely
         try:
@@ -405,12 +406,13 @@ class StructureEditor:
                 feedback=fb,
                 required_call_tags=required_call_tags,
             )
-            print("\n[StructureEditor] --- BUILT PROMPTS ---")
-            print(":"*40+"::system_prompt::"+":"*40)
-            print(system_prompt)
-            print(":"*40+"::user_prompt::"+":"*40)
-            print(user_prompt)
-            print(":"*98)
+            if self.verbose:
+                print("\n[StructureEditor] --- BUILT PROMPTS ---")
+                print(":"*40+"::system_prompt::"+":"*40)
+                print(system_prompt)
+                print(":"*40+"::user_prompt::"+":"*40)
+                print(user_prompt)
+                print(":"*98)
             raw = self.call_llm(system_prompt, user_prompt)
             reasoning, code = self._extract_reasoning_and_code(raw)
 
