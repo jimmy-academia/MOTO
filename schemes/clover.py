@@ -23,8 +23,6 @@ from prompt.clover import DEFAULT_META_PROMPT, DEFAULT_SEED_WORKFLOW_CODE, DEFAU
 
 # Deterministic, but persisted so outer-loop optimization can rewrite it.
 
-
-
 @dataclass
 class CloverRun:
     pred: str
