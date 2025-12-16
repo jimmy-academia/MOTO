@@ -9,7 +9,7 @@ import time
 import uuid
 import warnings
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from myopto.trace.nodes import GRAPH, MessageNode, Node, ParameterNode, node
 from myopto.utils.usage import compute_cost_usd, extract_model_name, extract_usage
@@ -47,6 +47,83 @@ def extract_trace_ids(text: str) -> List[str]:
             seen.add(tid)
             out.append(tid)
     return out
+
+
+def _extract_text(resp: Any) -> str:
+    """Best-effort extraction of assistant text from an OpenAI/LiteLLM style response."""
+    if resp is None:
+        return ""
+    if isinstance(resp, str):
+        return resp
+
+    # dict-style responses
+    if isinstance(resp, dict):
+        try:
+            return str(resp["choices"][0]["message"]["content"] or "")
+        except Exception:
+            pass
+        try:
+            return str(resp["choices"][0].get("text") or "")
+        except Exception:
+            pass
+        return str(resp)
+
+    # object-style responses (OpenAI python / LiteLLM compatible)
+    try:
+        choices = getattr(resp, "choices", None)
+        if choices:
+            ch0 = choices[0]
+            msg = getattr(ch0, "message", None) if not isinstance(ch0, dict) else ch0.get("message")
+            if msg is not None:
+                content = getattr(msg, "content", None) if not isinstance(msg, dict) else msg.get("content")
+                if content is not None:
+                    return str(content)
+            text = getattr(ch0, "text", None) if not isinstance(ch0, dict) else ch0.get("text")
+            if text is not None:
+                return str(text)
+    except Exception:
+        pass
+
+    return str(resp)
+
+
+def _usage_dict_from_raw(
+    raw: Any,
+    *,
+    model_fallback: Optional[str] = None,
+    role_fallback: Optional[str] = None,
+    backend_fallback: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Compute per-call usage/cost WITHOUT mutating ContextVar aggregators.
+
+    IMPORTANT:
+    - Do NOT call track_response() here. Your AbstractModel.__call__ may already
+      do request-level accounting, so calling track_response again would double-count.
+    """
+    try:
+        model = extract_model_name(raw) or model_fallback
+        pt, ct = extract_usage(raw)
+        usd = compute_cost_usd(pt, ct, model)
+        return {
+            "model": model,
+            "role": role_fallback,
+            "backend": backend_fallback,
+            "prompt_tokens": int(pt or 0),
+            "completion_tokens": int(ct or 0),
+            "total_tokens": int(pt or 0) + int(ct or 0),
+            "usd": float(usd or 0.0),
+        }
+    except Exception:
+        return {
+            "model": model_fallback,
+            "role": role_fallback,
+            "backend": backend_fallback,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "usd": 0.0,
+        }
 
 
 @dataclass(frozen=True)
@@ -98,6 +175,7 @@ def _hash_callsite(callsite: Dict[str, Any]) -> str:
     raw = f"{callsite.get('filename')}:{callsite.get('lineno')}:{callsite.get('function')}"
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:10]
 
+
 def _normalize_call_tag(call_tag: str) -> str:
     """
     Turn an arbitrary tag into a stable, name-safe identifier.
@@ -141,10 +219,10 @@ _ACTIVE_TRACER: contextvars.ContextVar[Optional["RuntimeTracer"]] = contextvars.
 )
 
 
-def _default_backend(system_prompt: Optional[str], user_prompt: str, llm: Any = None) -> str:
+def _default_backend_raw(system_prompt: Optional[str], user_prompt: str, llm: Any = None) -> Any:
     """
-    Default backend mirrors the existing operator style that builds messages and reads choices[0].message.content.
-    (See trace/myopto/trace/operators.py call_llm). 
+    Default backend mirrors the existing operator style that builds messages,
+    but returns the *raw* provider response so tracer can read usage/model.
     """
     from myopto.utils.llm import LLM
 
@@ -153,14 +231,12 @@ def _default_backend(system_prompt: Optional[str], user_prompt: str, llm: Any = 
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": user_prompt})
+    return llm(messages=messages)
 
-    out = llm(messages=messages)
-    if isinstance(out, str):
-        return out
-    try:
-        return out.choices[0].message.content
-    except Exception:
-        return str(out)
+
+def _default_backend(system_prompt: Optional[str], user_prompt: str, llm: Any = None) -> str:
+    """Compatibility wrapper: return assistant text (string)."""
+    return _extract_text(_default_backend_raw(system_prompt, user_prompt, llm=llm))
 
 
 class RuntimeTracer:
@@ -175,16 +251,17 @@ class RuntimeTracer:
         self,
         *,
         executor_llm: Optional[Any] = None,
-        backend: Optional[Callable[[Optional[str], str], str]] = None,
+        backend: Optional[Callable[[Optional[str], str], Any]] = None,
         clear_graph_on_enter: bool = True,
         trainable_prompt_templates: bool = True,
     ):
-        # If backend isn't provided, we default to using executor_llm (NOT the optimizer model).
+        # If backend isn't provided, default to using executor_llm (NOT the optimizer model).
         if backend is None:
             if executor_llm is None:
                 from myopto.utils.llm import LLM
+
                 executor_llm = LLM(role="executor")
-            self._backend = lambda sys_p, user_p: _default_backend(sys_p, user_p, llm=executor_llm)
+            self._backend = lambda sys_p, user_p: _default_backend_raw(sys_p, user_p, llm=executor_llm)
         else:
             self._backend = backend
 
@@ -212,7 +289,6 @@ class RuntimeTracer:
         """Heuristic: last LLM node executed in this tracer."""
         return self.llm_nodes[-1] if self.llm_nodes else None
 
-
     def __enter__(self) -> "RuntimeTracer":
         self._token = _ACTIVE_TRACER.set(self)
         if self.clear_graph_on_enter:
@@ -225,9 +301,7 @@ class RuntimeTracer:
             self._token = None
 
     def msg(self, value: str, *, name: str = "input", info: Optional[Dict[str, Any]] = None) -> Msg:
-        """
-        Wrap arbitrary text as a traced root Msg (useful for function inputs).
-        """
+        """Wrap arbitrary text as a traced root Msg (useful for function inputs)."""
         tid = str(uuid.uuid4()).lower()
         n = node(value, name=name, trainable=False, description="[input] runtime input", info=info or {})
         m = Msg(value, trace_id=tid, node=n)
@@ -249,7 +323,8 @@ class RuntimeTracer:
         """
         # Respect global tracing switch (stop_tracing sets GRAPH.TRACE False).
         if not GRAPH.TRACE:
-            return self._backend(system_prompt, strip_trace_tags(str(prompt)))
+            raw = self._backend(system_prompt, strip_trace_tags(str(prompt)))
+            return _extract_text(raw)
 
         callsite = _get_callsite()
         callsite_key = _hash_callsite(callsite)
@@ -276,16 +351,16 @@ class RuntimeTracer:
                 name=f"prompt_{key}",
                 trainable=trainable_prompt_template,
                 description=f"[prompt_template] {callsite.get('function')}:{callsite.get('lineno')}"
-                    + (f" tag={call_tag}" if call_tag else ""),
+                + (f" tag={call_tag}" if call_tag else ""),
                 constraint=constraint,
                 info={"callsite": callsite, "placeholders": placeholders, "call_tag": call_tag, "template_key": key},
-
             )
             self.prompt_templates[key] = tmpl_node
         else:
             # If placeholder shape changed (rare, but can happen with rewrites), keep things runnable.
             new_placeholders = [s.placeholder for s in slots]
             old_placeholders = (tmpl_node.info.get("placeholders") if isinstance(tmpl_node.info, dict) else None) or []
+
             if old_placeholders != new_placeholders:
                 if len(old_placeholders) == len(new_placeholders) and len(old_placeholders) > 0:
                     # preserve learned wording, just rename tokens by position
@@ -294,8 +369,14 @@ class RuntimeTracer:
                         rewritten = rewritten.replace(old_ph, new_ph)
                     tmpl_node._data = rewritten  # internal, but ok for ParameterNode
                 else:
-                    # fallback: reset to freshly derived template_str
+                    # fallback: reset to freshly derived template_str (warn because learned text may be lost)
+                    warnings.warn(
+                        f"[RuntimeTracer] Placeholder shape changed for template_key={key}. "
+                        f"Resetting template to current render shape.",
+                        RuntimeWarning,
+                    )
                     tmpl_node._data = template_str
+
                 tmpl_node.info["placeholders"] = new_placeholders
                 tmpl_node._constraint = (
                     "You are editing a prompt template.\n"
@@ -319,13 +400,34 @@ class RuntimeTracer:
                 deps[s.trace_id] = src.node
 
         # Render prompt LLM sees
-        rendered = tmpl_node.data
+        rendered = str(tmpl_node.data)
         for ph, rep in values.items():
             rendered = rendered.replace(ph, rep)
         rendered = strip_trace_tags(rendered)
 
-        # Call backend
-        response = self._backend(system_prompt, rendered)
+        # Call backend (raw) + measure latency
+        t0 = time.perf_counter()
+        raw = self._backend(system_prompt, rendered)
+        latency_s = time.perf_counter() - t0
+
+        response_text = _extract_text(raw)
+
+        # Usage/cost (per-call), without mutating ContextVar aggregators
+        model_fallback = None
+        role_fallback = "executor"
+        backend_fallback = None
+
+        if self.executor_llm is not None:
+            model_fallback = getattr(self.executor_llm, "model_name", None) or getattr(self.executor_llm, "model", None)
+            role_fallback = getattr(self.executor_llm, "role", None) or role_fallback
+            backend_fallback = self.executor_llm.__class__.__name__
+
+        usage = _usage_dict_from_raw(
+            raw,
+            model_fallback=model_fallback,
+            role_fallback=role_fallback,
+            backend_fallback=backend_fallback,
+        )
 
         # Create LLM node in the trace graph
         inputs: Dict[str, Node] = {"prompt_template": tmpl_node}
@@ -337,7 +439,6 @@ class RuntimeTracer:
         desc_tag = call_tag or "llm"
         desc = f"[llm] {desc_tag} @ {callsite.get('function')}:{callsite.get('lineno')}"
 
-
         info: Dict[str, Any] = {
             "callsite": callsite,
             "prompt_tagged": prompt_tagged,
@@ -347,52 +448,111 @@ class RuntimeTracer:
             "trace_deps": list(deps.keys()),
             "call_tag": call_tag,
             "template_key": key,
+            "usage": usage,
+            "latency_s": latency_s,
+            "response_type": type(raw).__name__,
         }
         if extra_info:
             info.update(extra_info)
 
-        llm_node = MessageNode(response, inputs=inputs, description=desc, name=llm_base_name, info=info)
+        llm_node = MessageNode(response_text, inputs=inputs, description=desc, name=llm_base_name, info=info)
         self.llm_nodes.append(llm_node)
 
         # Wrap output as Msg
-        out = Msg(response, trace_id=str(uuid.uuid4()).lower(), node=llm_node)
+        out = Msg(response_text, trace_id=str(uuid.uuid4()).lower(), node=llm_node)
         self.msg_registry[out.trace_id] = out
         return out
+
+    def get_cost_summary(self) -> Dict[str, Any]:
+        total_usd = 0.0
+        total_pt = 0
+        total_ct = 0
+        by_model: Dict[str, float] = {}
+        by_role: Dict[str, float] = {}
+
+        for n in self.llm_nodes:
+            info = n.info if isinstance(n.info, dict) else {}
+            u = info.get("usage") or {}
+
+            usd = float(u.get("usd") or 0.0)
+            pt = int(u.get("prompt_tokens") or 0)
+            ct = int(u.get("completion_tokens") or 0)
+
+            model = u.get("model") or "<unknown>"
+            role = u.get("role") or "<unknown>"
+
+            total_usd += usd
+            total_pt += pt
+            total_ct += ct
+
+            by_model[model] = float(by_model.get(model, 0.0)) + usd
+            by_role[role] = float(by_role.get(role, 0.0)) + usd
+
+        return {
+            "num_calls": len(self.llm_nodes),
+            "total_usd": total_usd,
+            "prompt_tokens": total_pt,
+            "completion_tokens": total_ct,
+            "total_tokens": total_pt + total_ct,
+            "by_model_usd": by_model,
+            "by_role_usd": by_role,
+        }
 
     def to_ir(self, *, max_prompt_chars: int = 500, max_out_chars: int = 200) -> Dict[str, Any]:
         def trunc(s: str, n: int) -> str:
             return s if len(s) <= n else s[:n] + " ...<truncated>"
 
-        nodes = []
-        edges = []
+        nodes: List[Dict[str, Any]] = []
+        edges: List[Dict[str, Any]] = []
+
         for n in self.llm_nodes:
-            cs = n.info.get("callsite") or {}
-            tmpl = n.info.get("prompt_template")
-            call_tag = n.info.get("call_tag")
-            template_key = n.info.get("template_key")
-            nodes.append({
-                "id": n.name,
-                "level": getattr(n, "level", None),
-                "callsite": {
-                    "function": cs.get("function"),
-                    "lineno": cs.get("lineno"),
-                    "filename": cs.get("filename"),
-                },
-                "call_tag": call_tag,
-                "template_key": template_key,
-                "template": {
-                    "name": getattr(tmpl, "name", None),
-                    "placeholders": (tmpl.info.get("placeholders") if tmpl is not None else None),
-                },
-                "prompt_rendered": trunc(n.info.get("prompt_rendered", ""), max_prompt_chars),
-                "output_preview": trunc(str(n.data), max_out_chars),
-                "parents": [p.name for p in getattr(n, "parents", [])],
-            })
+            info = n.info if isinstance(n.info, dict) else {}
+            cs = info.get("callsite") or {}
+            tmpl = info.get("prompt_template")
+            call_tag = info.get("call_tag")
+            template_key = info.get("template_key")
+
+            u = info.get("usage") or {}
+            latency_s = info.get("latency_s")
+
+            # Stable schema: always include usage keys
+            usage_obj = {
+                "model": u.get("model"),
+                "role": u.get("role"),
+                "backend": u.get("backend"),
+                "prompt_tokens": int(u.get("prompt_tokens") or 0),
+                "completion_tokens": int(u.get("completion_tokens") or 0),
+                "total_tokens": int(u.get("total_tokens") or 0),
+                "usd": float(u.get("usd") or 0.0),
+                "latency_s": float(latency_s) if latency_s is not None else None,
+            }
+
+            nodes.append(
+                {
+                    "id": n.name,
+                    "level": getattr(n, "level", None),
+                    "callsite": {
+                        "function": cs.get("function"),
+                        "lineno": cs.get("lineno"),
+                        "filename": cs.get("filename"),
+                    },
+                    "call_tag": call_tag,
+                    "template_key": template_key,
+                    "template": {
+                        "name": getattr(tmpl, "name", None),
+                        "placeholders": (tmpl.info.get("placeholders") if tmpl is not None else None),
+                    },
+                    "prompt_rendered": trunc(str(info.get("prompt_rendered", "")), max_prompt_chars),
+                    "output_preview": trunc(str(n.data), max_out_chars),
+                    "usage": usage_obj,
+                    "parents": [p.name for p in getattr(n, "parents", [])],
+                }
+            )
+
             for p in getattr(n, "parents", []):
                 edges.append({"src": p.name, "dst": n.name})
 
-        return {"nodes": nodes, "edges": edges}
-
+        return {"nodes": nodes, "edges": edges, "summary": self.get_cost_summary()}
 
 
 # -----------------------------
