@@ -6,7 +6,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .benchmark import BaseBenchmark
 from utils.logs import logger
@@ -76,7 +76,6 @@ POLICY_D = """DeltaCompliance Hybrid Policy (unseen at test time)
 ALLOWED_TEAMS = {"security", "billing", "infra", "app"}
 SEV_ORDER = {"normal": 0, "high": 1, "critical": 2}
 
-
 TEAM_BY_INDICATOR = {
     # security-ish
     "unauthorized-login": "security",
@@ -104,8 +103,8 @@ class Ticket:
     email_local: str
     impact_level: str
     sla_hours: float
-    customer_line: str       # exact "Customer: ..."(whole line)
-    indicator_line: str      # exact "Indicator: ..."(whole line)
+    customer_line: str  # exact "Customer: ..." line
+    indicator_line: str  # exact "Indicator: ..." line
     indicator_token: str
     raw_text: str
 
@@ -198,8 +197,8 @@ def worse_severity(a: str, b: str) -> str:
     return a if SEV_ORDER.get(a, 0) >= SEV_ORDER.get(b, 0) else b
 
 
-def make_problem_prompt(context_id: str, policy_text: str, raw_ticket: str) -> str:
-    schema = """{
+# Exported schema so schemes (e.g., CloverScheme) can reference it without duplicating strings.
+CLOVERTOY_SCHEMA = """{
   "ticket_id": "INC-xxxx",
   "team": "security|billing|infra|app",
   "severity": "critical|high|normal",
@@ -207,7 +206,10 @@ def make_problem_prompt(context_id: str, policy_text: str, raw_ticket: str) -> s
   "evidence_quote": "string (must be exact substring from input)",
   "internal_action": "string",
   "customer_message": "string"
-}"""
+}""".strip()
+
+
+def make_problem_prompt(context_id: str, policy_text: str, raw_ticket: str) -> str:
     return (
         "You are an operations agent. Follow the policy exactly.\n\n"
         f"=== POLICY (context_id={context_id}) ===\n{policy_text}\n\n"
@@ -216,14 +218,16 @@ def make_problem_prompt(context_id: str, policy_text: str, raw_ticket: str) -> s
         "=== OUTPUT REQUIREMENTS ===\n"
         "- Output MUST be STRICT JSON only (no markdown, no extra text).\n"
         "- Output MUST match this exact schema (keys must exist, no extra keys):\n"
-        f"{schema}\n"
+        f"{CLOVERTOY_SCHEMA}\n"
     )
+
 
 # --- CloverToy prompt parser (for scheme + benchmark fallback parsing) ---
 _PROMPT_RE = re.compile(
     r"=== POLICY \(context_id=(?P<context_id>[A-Za-z])\) ===\n(?P<context>.*?)\n\n=== INPUT TICKET ===\n(?P<ticket>.*?)\n\n=== OUTPUT REQUIREMENTS ===",
     re.S,
 )
+
 
 def split_problem_prompt(problem_text: str) -> Tuple[str, str, str]:
     """
@@ -238,7 +242,6 @@ def split_problem_prompt(problem_text: str) -> Tuple[str, str, str]:
         (m.group("context") or "").strip(),
         (m.group("ticket") or "").strip(),
     )
-
 
 
 def generate_gt(context_id: str, policy_text: str, ticket: Ticket) -> Dict[str, Any]:
@@ -346,10 +349,9 @@ def verify_output(context_id: str, policy_text: str, ticket: Ticket, pred_text: 
             tags.append(tag)
 
     # 1) strict json only
-    ok, msg = _is_strict_json_only(pred_text)
+    ok, msg_txt = _is_strict_json_only(pred_text)
     if not ok:
-        fail("strict_json", msg, tag="json")
-        passed_checks = 0
+        fail("strict_json", msg_txt, tag="json")
         total_checks = 7
         alpha = float(os.environ.get("CLOVERTOY_COST_ALPHA", "0.0"))
         score = 0.0
@@ -379,19 +381,42 @@ def verify_output(context_id: str, policy_text: str, ticket: Ticket, pred_text: 
     if pred_keys != expected_keys:
         missing = sorted(list(expected_keys - pred_keys))
         extra = sorted(list(pred_keys - expected_keys))
-        fail("schema_keys", f"keys mismatch (missing={missing}, extra={extra})", expected=sorted(list(expected_keys)), got=sorted(list(pred_keys)), tag="schema")
+        fail(
+            "schema_keys",
+            f"keys mismatch (missing={missing}, extra={extra})",
+            expected=sorted(list(expected_keys)),
+            got=sorted(list(pred_keys)),
+            tag="schema",
+        )
 
     # 3) evidence exact match (+ must be substring of input)
-    # expected evidence depends on context
     expected_evidence = ticket.indicator_line if context_id in {"A", "B", "D"} else ticket.customer_line
     ev = pred.get("evidence_quote", "")
     if not isinstance(ev, str):
-        fail("evidence_quote_type", "evidence_quote is not a string", expected="string", got=type(ev).__name__, tag="evidence")
+        fail(
+            "evidence_quote_type",
+            "evidence_quote is not a string",
+            expected="string",
+            got=type(ev).__name__,
+            tag="evidence",
+        )
     else:
         if ev not in ticket.raw_text:
-            fail("evidence_substring", "evidence_quote is not an exact substring of input", expected="exact substring from input", got=ev, tag="evidence")
+            fail(
+                "evidence_substring",
+                "evidence_quote is not an exact substring of input",
+                expected="exact substring from input",
+                got=ev,
+                tag="evidence",
+            )
         if ev != expected_evidence:
-            fail("evidence_exact_line", "evidence_quote must match the required line exactly", expected=expected_evidence, got=ev, tag="evidence")
+            fail(
+                "evidence_exact_line",
+                "evidence_quote must match the required line exactly",
+                expected=expected_evidence,
+                got=ev,
+                tag="evidence",
+            )
 
     # 4) redaction rule
     ro = pred.get("redacted_owner", "")
@@ -455,10 +480,20 @@ def verify_output(context_id: str, policy_text: str, ticket: Ticket, pred_text: 
             else:
                 lines = ia.splitlines()
                 if expected_sev == "critical" and "ESCALATE" not in lines[0]:
-                    fail("internal_action_escalate", 'Policy D requires first bullet include "ESCALATE" when severity=critical', tag="action")
+                    fail(
+                        "internal_action_escalate",
+                        'Policy D requires first bullet include "ESCALATE" when severity=critical',
+                        tag="action",
+                    )
                 tok = ticket.indicator_token
                 if tok and (tok not in ia):
-                    fail("internal_action_token", "Policy D requires indicator token appears in at least one bullet", expected=tok, got=ia, tag="action")
+                    fail(
+                        "internal_action_token",
+                        "Policy D requires indicator token appears in at least one bullet",
+                        expected=tok,
+                        got=ia,
+                        tag="action",
+                    )
 
     # 7) customer_message rule
     cm = pred.get("customer_message", "")
@@ -512,7 +547,7 @@ class CloverToyBenchmark(BaseBenchmark):
     - Default concurrency is forced to 1 because RuntimeTracer is backed by a global graph.
     """
 
-    def __init__(self, name: str, file_path: Path, log_path: Path):
+    def __init__(self, name: str, file_path: str, log_path: str):
         super().__init__(name, file_path, log_path)
         # Clover scheme uses a global trace graph; keep evaluation single-threaded by default.
         self.max_concurrent_tasks = int(os.environ.get("CLOVERTOY_MAX_CONCURRENCY", "1"))
@@ -561,7 +596,7 @@ class CloverToyBenchmark(BaseBenchmark):
         # Agent call: (prediction, cost) or (prediction, cost, meta)
         scheme = getattr(agent, "__self__", None)
         if scheme is not None and hasattr(scheme, "inference_with_meta"):
-            prediction, cost, meta = await scheme.inference_with_meta(prompt)
+            prediction, cost, meta = await scheme.inference_with_meta(prompt)  # type: ignore[attr-defined]
         else:
             prediction, cost = await agent(prompt)
             meta = {}
@@ -595,13 +630,10 @@ class CloverToyBenchmark(BaseBenchmark):
             prediction,
         )
 
-    def save_results_to_csv(self, results: List[Tuple[Any, ...]]) -> Tuple[float, float, float]:
+    def save_results_to_csv(self, results: List[Tuple[Any, ...]], columns: List[str]) -> Tuple[float, float, float]:
         import pandas as pd
 
-        columns = self.get_result_columns()
         df = pd.DataFrame(results, columns=columns)
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(self.log_path, index=False)
 
         solve_rate = float(df["passed"].mean()) if len(df) else 0.0
         avg_iters = float(df["iterations"].mean()) if len(df) else 0.0
@@ -613,8 +645,14 @@ class CloverToyBenchmark(BaseBenchmark):
             total_cost = float(df["cost"].max()) if len(df) else 0.0
         avg_cost = total_cost / len(df) if len(df) else 0.0
 
+        # Save under the log directory, consistent with BaseBenchmark
+        log_dir = Path(self.log_path)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        output_file = log_dir / f"{self.name}_{solve_rate:.2f}_{avg_cost:.2f}_{total_cost:.2f}.csv"
+        df.to_csv(output_file, index=False)
+
         logger.info(
             f"[clovertoy] solve_rate={solve_rate:.3f} avg_iters={avg_iters:.2f} "
-            f"avg_cost=${avg_cost:.6f} total_cost=${total_cost:.6f}"
+            f"avg_cost=${avg_cost:.6f} total_cost=${total_cost:.6f} saved={output_file}"
         )
         return solve_rate, avg_cost, total_cost
