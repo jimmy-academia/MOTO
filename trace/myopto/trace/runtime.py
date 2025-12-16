@@ -5,12 +5,14 @@ import contextvars
 import hashlib
 import inspect
 import re
+import time
 import uuid
 import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from myopto.trace.nodes import GRAPH, MessageNode, Node, ParameterNode, node
+from myopto.utils.usage import compute_cost_usd, extract_model_name, extract_usage
 
 
 # -----------------------------
