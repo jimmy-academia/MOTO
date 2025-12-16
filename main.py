@@ -11,12 +11,12 @@ from utils import good_json_dump
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--scheme', type=str, default='moto')
+    parser.add_argument('-s', '--scheme', type=str, default='clover')
     # moto, optopy, optotext, (aflow)
     
     past = ['math', 'gsm8k', 'drop', 'hotpotqa', 'humaneval', 'mbpp']
     new = ['clovertoy']
-    parser.add_argument('-b', '--benchmark', type=str, choices=past+new, help='Dataset name', default='math')
+    parser.add_argument('-b', '--benchmark', type=str, choices=past+new, help='Dataset name', default='clovertoy')
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model
