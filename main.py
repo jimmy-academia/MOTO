@@ -42,7 +42,7 @@ def get_parser():
     parser.add_argument('--val_interval', type=int, default=4)
     parser.add_argument('--batch_size', type=int, default=5)
     parser.add_argument('--output_dir', type=str, default='output')
-    
+    parser.add_argument('--inner_loop_iters', type=int, default=3)
     if args.benchmark in meta_sets:
         args.batch_mode = "meta"
 
