@@ -75,3 +75,6 @@ def set_seeds(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
 
+def get_key():
+    with open("../.openaiapi", "r") as f:
+        return f.read().strip()

@@ -2,12 +2,17 @@ import os
 import asyncio
 import argparse
 
-from llm import get_key
 from benchmarks import get_benchmark
 from schemes import get_scheme
+
+from utils import get_key
 from utils.logs import logger
 from utils.count_data import get_safe_random_indices
 from utils import good_json_dump
+from myopto.utils.llm_router import set_role_models
+from myopto.utils.usage import configure_usage
+
+
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -103,8 +108,13 @@ def main():
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
     os.environ["OPENAI_API_KEY"] = get_key()
-    os.environ["TRACE_LITELLM_MODEL"] = args.opt_model
     os.environ["LITELLM_LOG"] = "INFO"
+    set_role_models(
+        executor=args.exe_model,
+        optimizer=args.opt_model,
+        metaoptimizer=args.mopt_model,
+    )
+    configure_usage(enabled=True)
     asyncio.run(run_main(args))
 
 if __name__ == '__main__':
