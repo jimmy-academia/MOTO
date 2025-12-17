@@ -1,4 +1,5 @@
 import warnings
+import contextvars
 from typing import Optional, List, Dict, Callable, Union, Type, Any
 import copy
 from collections import defaultdict
@@ -233,6 +234,21 @@ class Graph:
 
 GRAPH = Graph()  # This is a global registry of all the nodes.
 
+_ACTIVE_GRAPH = contextvars.ContextVar("myopto_trace_active_graph", default=GRAPH)
+
+
+def active_graph():
+    return _ACTIVE_GRAPH.get()
+
+
+def set_active_graph(graph):
+    return _ACTIVE_GRAPH.set(graph)
+
+
+def reset_active_graph(token):
+    if token is not None:
+        _ACTIVE_GRAPH.reset(token)
+
 USED_NODES = (
     list()
 )  # A stack of sets. This is a global registry to track which nodes are read.
@@ -298,7 +314,7 @@ class AbstractNode(Generic[T]):
         else:
             self._data = value
             self._name = default_name
-        GRAPH.register(self)  # When created, register the node to the graph.
+        active_graph().register(self)  # When created, register the node to the graph.
 
     @property
     def data(self):
@@ -312,7 +328,7 @@ class AbstractNode(Generic[T]):
             This function assumes that the "_data" attribute exists within the node object.
             If this attribute is not present, an AttributeError will be raised.
         """
-        if len(USED_NODES) > 0 and GRAPH.TRACE:  # We're within trace_nodes context.
+        if len(USED_NODES) > 0 and active_graph().TRACE:  # We're within trace_nodes context.
             USED_NODES[-1].add(self)
         return self.__getattribute__("_data")
 
@@ -524,7 +540,7 @@ class AbstractNode(Generic[T]):
                 setattr(result, k, defaultdict(list))
             else:
                 setattr(result, k, copy.deepcopy(v, memo))
-        GRAPH.register(result)
+        active_graph().register(result)
         return result
 
     def lt(self, other):
@@ -2144,7 +2160,7 @@ class MessageNode(Node[T]):
         self._inputs = inputs
 
         # If not tracing, MessageNode would just behave like a Node.
-        if not GRAPH.TRACE:
+        if not active_graph().TRACE:
             assert (
                 len(self._inputs) == 0
             ), "MessageNode should have no inputs when not tracing."

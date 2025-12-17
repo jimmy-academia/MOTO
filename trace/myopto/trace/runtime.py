@@ -11,7 +11,16 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from myopto.trace.nodes import GRAPH, MessageNode, Node, ParameterNode, node
+from myopto.trace.nodes import (
+    GRAPH,
+    Graph,
+    MessageNode,
+    Node,
+    ParameterNode,
+    node,
+    reset_active_graph,
+    set_active_graph,
+)
 from myopto.utils.usage import compute_cost_usd, extract_model_name, extract_usage
 
 
@@ -252,6 +261,13 @@ class RuntimeTracer:
         *,
         executor_llm: Optional[Any] = None,
         backend: Optional[Callable[[Optional[str], str], Any]] = None,
+        run_id: Optional[str] = None,
+        domain: Optional[str] = None,
+        parent_run_id: Optional[str] = None,
+        sample_id: Optional[str] = None,
+        iteration: Optional[int] = None,
+        workflow_level: Optional[int] = None,
+        clear_scope: Optional[str] = None,
         clear_graph_on_enter: bool = True,
         trainable_prompt_templates: bool = True,
     ):
@@ -265,6 +281,14 @@ class RuntimeTracer:
         else:
             self._backend = backend
 
+        self.graph = Graph()
+        self.run_id = run_id or str(uuid.uuid4())
+        self.domain = domain
+        self.parent_run_id = parent_run_id
+        self.sample_id = sample_id
+        self.iteration = iteration
+        self.workflow_level = workflow_level
+        self.clear_scope = clear_scope or ("current" if clear_graph_on_enter else "none")
         self.executor_llm = executor_llm
         self.clear_graph_on_enter = clear_graph_on_enter
         self.trainable_prompt_templates = trainable_prompt_templates
@@ -279,6 +303,7 @@ class RuntimeTracer:
         self.llm_nodes: List[MessageNode] = []
 
         self._token = None
+        self._graph_token = None
 
     def parameters(self) -> List[ParameterNode]:
         """Trainable prompt template parameters collected so far."""
@@ -291,11 +316,18 @@ class RuntimeTracer:
 
     def __enter__(self) -> "RuntimeTracer":
         self._token = _ACTIVE_TRACER.set(self)
-        if self.clear_graph_on_enter:
+        self._graph_token = set_active_graph(self.graph)
+        scope = self.clear_scope
+        if scope == "current":
+            self.graph.clear()
+        elif scope == "all":
             GRAPH.clear()
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
+        if self._graph_token is not None:
+            reset_active_graph(self._graph_token)
+            self._graph_token = None
         if self._token is not None:
             _ACTIVE_TRACER.reset(self._token)
             self._token = None
@@ -303,7 +335,17 @@ class RuntimeTracer:
     def msg(self, value: str, *, name: str = "input", info: Optional[Dict[str, Any]] = None) -> Msg:
         """Wrap arbitrary text as a traced root Msg (useful for function inputs)."""
         tid = str(uuid.uuid4()).lower()
-        n = node(value, name=name, trainable=False, description="[input] runtime input", info=info or {})
+        meta_info = {
+            "run_id": self.run_id,
+            "domain": self.domain,
+            "parent_run_id": self.parent_run_id,
+            "workflow_level": self.workflow_level,
+            "sample_id": self.sample_id,
+            "iteration": self.iteration,
+        }
+        if info:
+            meta_info.update(info)
+        n = node(value, name=name, trainable=False, description="[input] runtime input", info=meta_info)
         m = Msg(value, trace_id=tid, node=n)
         self.msg_registry[m.trace_id] = m
         return m
@@ -330,6 +372,15 @@ class RuntimeTracer:
         callsite_key = _hash_callsite(callsite)
         key = _template_key(callsite_key, call_tag)
 
+        meta_info = {
+            "run_id": self.run_id,
+            "domain": self.domain,
+            "parent_run_id": self.parent_run_id,
+            "workflow_level": self.workflow_level,
+            "sample_id": self.sample_id,
+            "iteration": self.iteration,
+        }
+
         # Parse dependencies from tags + build template representation
         prompt_tagged = str(prompt)
         template_str, slots = _prompt_to_template(prompt_tagged)
@@ -346,6 +397,8 @@ class RuntimeTracer:
                 "Do NOT remove or alter these placeholder tokens (keep EXACT text):\n"
                 + "\n".join(placeholders)
             )
+            tmpl_info = dict(meta_info)
+            tmpl_info.update({"callsite": callsite, "placeholders": placeholders, "call_tag": call_tag, "template_key": key})
             tmpl_node = node(
                 template_str,
                 name=f"prompt_{key}",
@@ -353,7 +406,7 @@ class RuntimeTracer:
                 description=f"[prompt_template] {callsite.get('function')}:{callsite.get('lineno')}"
                 + (f" tag={call_tag}" if call_tag else ""),
                 constraint=constraint,
-                info={"callsite": callsite, "placeholders": placeholders, "call_tag": call_tag, "template_key": key},
+                info=tmpl_info,
             )
             self.prompt_templates[key] = tmpl_node
         else:
@@ -439,19 +492,22 @@ class RuntimeTracer:
         desc_tag = call_tag or "llm"
         desc = f"[llm] {desc_tag} @ {callsite.get('function')}:{callsite.get('lineno')}"
 
-        info: Dict[str, Any] = {
-            "callsite": callsite,
-            "prompt_tagged": prompt_tagged,
-            "prompt_template": tmpl_node,
-            "prompt_rendered": rendered,
-            "system_prompt": system_prompt,
-            "trace_deps": list(deps.keys()),
-            "call_tag": call_tag,
-            "template_key": key,
-            "usage": usage,
-            "latency_s": latency_s,
-            "response_type": type(raw).__name__,
-        }
+        info = dict(meta_info)
+        info.update(
+            {
+                "callsite": callsite,
+                "prompt_tagged": prompt_tagged,
+                "prompt_template": tmpl_node,
+                "prompt_rendered": rendered,
+                "system_prompt": system_prompt,
+                "trace_deps": list(deps.keys()),
+                "call_tag": call_tag,
+                "template_key": key,
+                "usage": usage,
+                "latency_s": latency_s,
+                "response_type": type(raw).__name__,
+            }
+        )
         if extra_info:
             info.update(extra_info)
 
@@ -463,14 +519,16 @@ class RuntimeTracer:
         self.msg_registry[out.trace_id] = out
         return out
 
-    def get_cost_summary(self) -> Dict[str, Any]:
+    def get_cost_summary(self, nodes: Optional[List[MessageNode]] = None) -> Dict[str, Any]:
         total_usd = 0.0
         total_pt = 0
         total_ct = 0
         by_model: Dict[str, float] = {}
         by_role: Dict[str, float] = {}
 
-        for n in self.llm_nodes:
+        target_nodes = nodes if nodes is not None else self.llm_nodes
+
+        for n in target_nodes:
             info = n.info if isinstance(n.info, dict) else {}
             u = info.get("usage") or {}
 
@@ -489,7 +547,7 @@ class RuntimeTracer:
             by_role[role] = float(by_role.get(role, 0.0)) + usd
 
         return {
-            "num_calls": len(self.llm_nodes),
+            "num_calls": len(target_nodes),
             "total_usd": total_usd,
             "prompt_tokens": total_pt,
             "completion_tokens": total_ct,
@@ -498,12 +556,21 @@ class RuntimeTracer:
             "by_role_usd": by_role,
         }
 
-    def to_ir(self, *, max_prompt_chars: int = 500, max_out_chars: int = 200) -> Dict[str, Any]:
+    def to_ir(
+        self,
+        *,
+        max_prompt_chars: int = 500,
+        max_out_chars: int = 200,
+        level: Optional[int] = None,
+        domain: Optional[str] = None,
+    ) -> Dict[str, Any]:
         def trunc(s: str, n: int) -> str:
             return s if len(s) <= n else s[:n] + " ...<truncated>"
 
         nodes: List[Dict[str, Any]] = []
         edges: List[Dict[str, Any]] = []
+
+        filtered_nodes: List[MessageNode] = []
 
         for n in self.llm_nodes:
             info = n.info if isinstance(n.info, dict) else {}
@@ -514,6 +581,15 @@ class RuntimeTracer:
 
             u = info.get("usage") or {}
             latency_s = info.get("latency_s")
+
+            wl = info.get("workflow_level")
+            dm = info.get("domain")
+            if level is not None and wl != level:
+                continue
+            if domain is not None and dm != domain:
+                continue
+
+            filtered_nodes.append(n)
 
             # Stable schema: always include usage keys
             usage_obj = {
@@ -542,6 +618,12 @@ class RuntimeTracer:
                         "name": getattr(tmpl, "name", None),
                         "placeholders": (tmpl.info.get("placeholders") if tmpl is not None else None),
                     },
+                    "run_id": info.get("run_id"),
+                    "parent_run_id": info.get("parent_run_id"),
+                    "domain": dm,
+                    "workflow_level": wl,
+                    "sample_id": info.get("sample_id"),
+                    "iteration": info.get("iteration"),
                     "prompt_rendered": trunc(str(info.get("prompt_rendered", "")), max_prompt_chars),
                     "output_preview": trunc(str(n.data), max_out_chars),
                     "usage": usage_obj,
@@ -549,10 +631,21 @@ class RuntimeTracer:
                 }
             )
 
+        for n in filtered_nodes:
             for p in getattr(n, "parents", []):
                 edges.append({"src": p.name, "dst": n.name})
 
-        return {"nodes": nodes, "edges": edges, "summary": self.get_cost_summary()}
+        return {
+            "run_id": self.run_id,
+            "domain": self.domain,
+            "parent_run_id": self.parent_run_id,
+            "workflow_level": self.workflow_level,
+            "sample_id": self.sample_id,
+            "iteration": self.iteration,
+            "nodes": nodes,
+            "edges": edges,
+            "summary": self.get_cost_summary(nodes=filtered_nodes),
+        }
 
 
 # -----------------------------
