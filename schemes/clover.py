@@ -32,8 +32,8 @@ class CloverScheme(BaseScheme):
         reset_usage()
 
         obs: List[Dict[str, Any]] = []
-        for ctx, x, y_true in zip(contexts, problems, answers):
-            meta = self.inner_loop(ctx, x, y_true)
+        for ctx, x, _answer in zip(contexts, problems, answers):
+            meta = self.inner_loop(ctx, x)
             obs.append(meta)
 
         # outer loop: meta-update the 3 artifacts (small + direct)
@@ -44,7 +44,7 @@ class CloverScheme(BaseScheme):
 
         return {"cost_usd": float(get_total_cost()), "passed": sum(int(o["passed"]) for o in obs)}
 
-    def inner_loop(self, ctx: str, x: str, y_true: str):
+    def inner_loop(self, ctx: str, x: str):
         iters = int(getattr(self.args, "inner_loop_iters", 3))
         enable_structure = bool(getattr(self.args, "enable_structure", True))
 
@@ -62,7 +62,7 @@ class CloverScheme(BaseScheme):
             # ----- verifier + feedback
             ticket = parse_ticket(x)
             report = verify_output("", ctx, ticket, pred, float(get_total_cost()))
-            feedback = self.feedback_fn("", ctx, x, pred, {"verifier": report, "y_true": y_true})
+            feedback = self.feedback_fn("", ctx, x, pred, {"verifier": report})
 
             score = float(report.get("score_with_cost", report.get("score", 0.0)))
             passed = bool(report.get("passed", False))
@@ -140,7 +140,9 @@ class CloverScheme(BaseScheme):
 
     def save_model(self, epoch):
         pass
+
     def load(self, path):
         pass
+
     def inference(self, x):
         pass
