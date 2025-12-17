@@ -1,330 +1,274 @@
 import hashlib
-import inspect
-from typing import Any, Dict, List, Optional
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from myopto.optimizers import OptoPrimeLocal
+from myopto.optimizers.structure_editor import StructureEditor
+from myopto.trace.runtime import RuntimeTracer, llm, msg, strip_trace_tags
+from myopto.utils.llm_call import llm_json
+from myopto.utils.llm_router import get_llm
+from myopto.utils.usage import get_total_cost, reset_usage
 
 from schemes.base import BaseScheme
 
-from myopto.trace.runtime import RuntimeTracer, llm, msg, strip_trace_tags
-from myopto.optimizers.optoprime_local import OptoPrimeLocal
-from myopto.optimizers.structure_editor import StructureEditor
-from myopto.utils.usage import reset_usage, get_total_cost
 
-from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
+@dataclass
+class CloverTrajectoryStep:
+    iteration: int
+    pred: str
+    feedback: str
+    wf_code_snippet: str
+    wf_code_hash: str
+    cost_usd: float
 
 
 class CloverScheme(BaseScheme):
-    def __init__(self, args: Any):
+    def __init__(self, args):
         super().__init__(args)
         self.args = args
+        self.seed_workflow_code: str = args.seed_workflow
+        self.meta_prompt: str = args.meta_prompt
+        self.feedback_workflow_code: str = args.feedback_workflow
 
-        # Meta-optimizer artifacts (outer loop edits these)
-        self.meta_prompt = META_PROMPT
-        self.seed_workflow_code = SEED_WORKFLOW_CODE
-        self.feedback_workflow_code = FEEDBACK_WORKFLOW_CODE
-
-        self.editor = StructureEditor(verbose=False, forbid_imports=True)
-        self.workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
-        self.feedback_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
-
-    def _load(self, code: str, func_name: str):
-        return self.editor.load_function(
-            code,
-            func_name=func_name,
-            extra_globals={"llm": llm, "msg": msg},
+        self.editor = StructureEditor(
+            llm=get_llm(role="optimizer"),
+            max_tokens=getattr(args, "structure_max_tokens", 12000),
+            require_call_tag=True,
+            forbid_strip_trace_tags=True,
+            forbid_imports=True,
+            verbose=getattr(args, "verbose", False),
         )
+        self.prompt_optimizer = OptoPrimeLocal(max_tokens=getattr(args, "opt_max_tokens", 12000), log=False)
+
+        self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
+        self.feedback_workflow_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
+
+    def _load(self, code: str, fn_name: str):
+        # Allow workflows to call llm/msg at runtime.
+        return self.editor.load_function(code, fn_name, extra_globals={"llm": llm, "msg": msg})
 
     def _sha12(self, s: str) -> str:
         return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
 
-    def _call_workflow(self, wf_fn, ctx: str, x: str):
-        """
-        Calls the workflow function in a signature-tolerant way.
+    def _call_workflow(self, wf_fn, context: str, x: str, tracer: RuntimeTracer) -> Tuple[str, dict, float]:
+        with tracer:
+            start_cost = float(get_total_cost())
+            out_msg = wf_fn(context, x)
+            pred = strip_trace_tags(str(out_msg))
+            ir = tracer.to_ir()
+            end_cost = float(get_total_cost())
+        return pred, ir, end_cost - start_cost
 
-        CloverScheme is benchmark-agnostic. If the workflow still carries optional
-        params (e.g., schema/meta_prompt), we pass safe placeholders.
-        """
-        try:
-            sig = inspect.signature(wf_fn)
-        except (TypeError, ValueError):
-            return wf_fn(ctx, x)
-
-        kwargs: Dict[str, Any] = {}
-        for name, param in sig.parameters.items():
-            if name in ("ctx", "context"):
-                kwargs[name] = ctx
-            elif name in ("x", "input", "problem"):
-                kwargs[name] = x
-            elif name in ("meta_prompt", "metaprompt"):
-                kwargs[name] = self.meta_prompt
-            elif name in ("schema", "output_schema"):
-                kwargs[name] = None
-            elif name in ("system_prompt", "sys_prompt"):
-                kwargs[name] = ""
-
-        missing_required = []
-        for name, param in sig.parameters.items():
-            if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
-                continue
-            if param.default is inspect._empty and name not in kwargs:
-                missing_required.append(name)
-
-        last_exc: Optional[Exception] = None
-
-        if not missing_required:
-            try:
-                return wf_fn(**kwargs)
-            except TypeError as e:
-                last_exc = e
-
-        # Fallback positional patterns (common historical signatures)
-        candidates = [
-            (ctx, x),
-            (ctx, x, None),
-            (ctx, x, None, self.meta_prompt),
-            (ctx, x, self.meta_prompt),
-            ("", ctx, x),
-            ("", ctx, x, None, self.meta_prompt),
-            ("", ctx, x, self.meta_prompt),
-        ]
-        for args in candidates:
-            try:
-                return wf_fn(*args)
-            except TypeError as e:
-                last_exc = e
-                continue
-
-        if last_exc is not None:
-            raise last_exc
-        return wf_fn(ctx, x)
-
-    def _call_feedback(self, ctx: str, x: str, pred: str, trace_ir: Any):
-        """
-        Calls the feedback workflow in a signature-tolerant way.
-
-        IMPORTANT: feedback sees NO ground truth; it only sees trace IR and pred.
-        """
-        artifacts = {"trace_ir": trace_ir}
-
-        # Preferred / historical signature
-        try:
-            return self.feedback_fn("", ctx, x, pred, artifacts)
-        except TypeError:
-            pass
-
-        # Common alternate
-        try:
-            return self.feedback_fn(ctx, x, pred, artifacts)
-        except TypeError:
-            pass
-
-        # Last resort
-        return self.feedback_fn(ctx, x, pred)
+    def _call_feedback(self, feedback_fn, trace_ir: dict, pred: str, tracer: RuntimeTracer) -> str:
+        with tracer:
+            out_msg = feedback_fn(trace_ir, pred)
+            fb = strip_trace_tags(str(out_msg))
+        return fb
 
     async def train_one_batch(self, batch, calculate_score):
-        """
-        Commit 3: scoring is training/eval-only via calculate_score(answer, pred).
-        calculate_score is the ONLY evaluator.
-        """
-        contexts, problems, answers = batch
-
-        # Reset once per batch so get_total_cost() is meaningful across the batch.
+        # One usage bucket per batch.
         reset_usage()
 
+        contexts, xs, answers = batch
         obs: List[Dict[str, Any]] = []
         passed_count = 0
 
-        for ctx, x, answer in zip(contexts, problems, answers):
-            inner = self.inner_loop(ctx, x)
-            pred = inner.get("pred", "")
+        for ctx, x, ans in zip(contexts, xs, answers):
+            record = self.inner_loop(ctx, x)
+            pred = record["pred"]
 
-            # Training/eval-only scoring: ground truth only touched here.
             score = 0.0
-            extra = None
             try:
-                res = calculate_score(answer, pred)
-                if isinstance(res, tuple) and len(res) >= 1:
-                    score = float(res[0])
-                    extra = res[1] if len(res) > 1 else None
-                else:
-                    score = float(res)
+                score, _extra = calculate_score(ans, pred)
             except TypeError:
-                # Some benchmarks may use the opposite arg order
-                try:
-                    res = calculate_score(pred, answer)
-                    if isinstance(res, tuple) and len(res) >= 1:
-                        score = float(res[0])
-                        extra = res[1] if len(res) > 1 else None
-                    else:
-                        score = float(res)
-                except Exception:
-                    score = 0.0
-                    extra = None
-            except Exception:
-                score = 0.0
-                extra = None
+                # Back-compat: some benchmarks use calculate_score(pred, ans)
+                score, _extra = calculate_score(pred, ans)
 
-            passed = bool(score == 1 or score == 1.0 or score is True)
+            passed = bool(score == 1 or score == 1.0)
             if passed:
                 passed_count += 1
 
-            record = dict(inner)
-            record.update({"score": score, "passed": passed})
-            if extra is not None:
-                record["score_extra"] = extra
+            # Keep the batch observation self-contained for outer loop.
+            record["score"] = float(score)
+            record["passed"] = passed
+            record["context"] = ctx
+            record["input"] = x
             obs.append(record)
 
-        # Outer loop left unchanged (per your instructions).
-        updated = self.outer_loop(obs)
+        batch_size = len(answers)
+        all_passed = passed_count == batch_size
+
+        # Commit 5: outer loop runs once per batch, but NEVER runs on an all-pass batch.
+        updated = False
+        if not all_passed:
+            failed_obs = [o for o in obs if not o.get("passed")]
+            updated = self.outer_loop(failed_obs or obs)
+
         if updated:
-            self.workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
-            self.feedback_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
+            # Reload updated seed workflow (outer loop can only update seed_workflow).
+            self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
 
-        return {"cost_usd": float(get_total_cost()), "passed": passed_count}
+        # Commit 5: expose all_passed so the epoch driver can early-stop.
+        return {
+            "cost_usd": float(get_total_cost()),
+            "passed": passed_count,
+            "batch_size": batch_size,
+            "all_passed": all_passed,
+            "outer_updated": updated,
+            "observations": obs,
+        }
 
-    def inner_loop(self, ctx: str, x: str) -> Dict[str, Any]:
-        """
-        Commit 2: benchmark-agnostic inner loop (no CloverToy imports, no verifier).
-        Commit 4: single-path loop: run -> feedback(trace_ir) -> structure -> prompt.
-                  self.seed_workflow_code is NOT mutated here.
-
-        Returns:
-          {pred, iterations, sample_cost_usd, trajectory}
-        """
-        iters = int(getattr(self.args, "inner_loop_iters", 3))
-        enable_structure = bool(getattr(self.args, "enable_structure", True))
-
-        # Local ephemeral state (no global mutation)
+    def inner_loop(self, context: str, x: str) -> Dict[str, Any]:
         wf_code = self.seed_workflow_code
-        wf_fn = self.workflow_fn
+        wf_fn = self.seed_workflow_fn
 
-        trajectory: List[Dict[str, Any]] = []
-
-        sample_cost_start = float(get_total_cost())
+        trajectory: List[CloverTrajectoryStep] = []
         last_pred = ""
+        last_cost = 0.0
 
-        for t in range(iters):
-            iter_cost_start = float(get_total_cost())
-
-            # (1) Executor run under tracer
+        for it in range(getattr(self.args, "inner_loop_iters", 3)):
             tracer = RuntimeTracer(trainable_prompt_templates=True, clear_graph_on_enter=True)
-            with tracer:
-                out_msg = self._call_workflow(wf_fn, ctx, x)
-
-            pred = strip_trace_tags(str(out_msg)).strip()
+            pred, trace_ir, cost = self._call_workflow(wf_fn, context, x, tracer)
             last_pred = pred
+            last_cost = float(cost)
 
-            trace_ir = tracer.to_ir()
+            # feedback has access to trace_ir and pred but not ground truth
+            tracer_fb = RuntimeTracer(trainable_prompt_templates=False, clear_graph_on_enter=True)
+            feedback = self._call_feedback(self.feedback_workflow_fn, trace_ir, pred, tracer_fb)
 
-            run_cost_mid = float(get_total_cost())
-            run_cost_usd = run_cost_mid - iter_cost_start
+            # structure update (workflow rewrite)
+            wf_code_new = self.editor.rewrite_code(code=wf_code, feedback=feedback, call_tag=f"clover_struct_{it}")
+            if isinstance(wf_code_new, str) and wf_code_new.strip():
+                wf_code = wf_code_new
+                wf_fn = self._load(wf_code, "seed_workflow")
 
-            # (2) Feedback driven by full trace IR (no verifier, no GT)
-            feedback = self._call_feedback(ctx, x, pred, trace_ir)
-            feedback_str = strip_trace_tags(str(feedback)).strip()
-
-            # (3) Structure update (local wf_code only)
-            structure_updated = False
-            if enable_structure:
-                rewrite_prompt = (
-                    f"{self.meta_prompt}\n\n"
-                    "You are editing the workflow code to improve correctness.\n"
-                    "Constraints:\n"
-                    "- Make minimal changes.\n"
-                    "- Do not add imports.\n"
-                    "- Keep the function name: seed_workflow.\n\n"
-                    f"Context:\n{ctx}\n\n"
-                    f"Input:\n{x}\n\n"
-                    f"Prediction:\n{pred}\n\n"
-                    f"Feedback:\n{feedback_str}\n\n"
-                    f"Trace IR:\n{trace_ir}\n"
-                )
-                edit = self.editor.rewrite_code(
-                    code=wf_code,
-                    func_name="seed_workflow",
-                    instruction=rewrite_prompt,
-                )
-                if getattr(edit, "ok", False) and getattr(edit, "code", None):
-                    if edit.code != wf_code:
-                        wf_code = edit.code
-                        wf_fn = self._load(wf_code, "seed_workflow")
-                        structure_updated = True
-
-            # (4) Prompt update (OptoPrimeLocal)
-            params = list(getattr(tracer, "prompt_templates", {}).values())
-            node = getattr(out_msg, "node", None)
-            if params and node is not None:
-                opt = OptoPrimeLocal(params)
-                opt.zero_feedback()
-                opt.backward(node, feedback_str, visualize=False)
-                opt.step(mode="per_param", verbose=False)
-
-            iter_cost_end = float(get_total_cost())
-            iter_cost_usd = iter_cost_end - iter_cost_start
+            # prompt update via OptoPrimeLocal over tracer.prompt_templates
+            try:
+                objective = msg(feedback)
+                self.prompt_optimizer.step(tracer, objective=objective, verbose=False)
+            except Exception:
+                pass
 
             trajectory.append(
-                {
-                    "iter": t,
-                    "pred": pred,
-                    "feedback": feedback_str,
-                    "cost_usd": iter_cost_usd,
-                    "run_cost_usd": run_cost_usd,
-                    "wf_code_sha12": self._sha12(wf_code),
-                    "wf_code_preview": wf_code[:200],
-                    "structure_updated": structure_updated,
-                }
+                CloverTrajectoryStep(
+                    iteration=it,
+                    pred=pred,
+                    feedback=feedback,
+                    wf_code_snippet=wf_code[:4000],
+                    wf_code_hash=self._sha12(wf_code),
+                    cost_usd=float(cost),
+                )
             )
-
-        sample_cost_end = float(get_total_cost())
-        sample_cost_usd = sample_cost_end - sample_cost_start
 
         return {
             "pred": last_pred,
             "iterations": len(trajectory),
-            "sample_cost_usd": sample_cost_usd,
-            "trajectory": trajectory,
+            "sample_cost_usd": float(last_cost),
+            "trajectory": [step.__dict__ for step in trajectory],
         }
 
     def outer_loop(self, observations: List[Dict[str, Any]]) -> bool:
-        # one meta-LLM call; keep strict IO so it doesn't drift
-        prompt = (
-            "Update META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE for CLOVER.\n"
-            "Return ONLY JSON with any subset of keys:\n"
-            '  {"meta_prompt": "...", "seed_workflow_code": "...", "feedback_workflow_code": "..."}\n\n'
-            "Constraints:\n"
-            "- do not add imports\n"
-            "- keep function names: seed_workflow, feedback_workflow\n\n"
-            f"Current META_PROMPT:\n{self.meta_prompt}\n\n"
-            f"Current SEED_WORKFLOW_CODE:\n{self.seed_workflow_code}\n\n"
-            f"Current FEEDBACK_WORKFLOW_CODE:\n{self.feedback_workflow_code}\n\n"
-            "Observations:\n"
-            + "\n".join(str(o) for o in observations[:10])
-        )
+        prompt = f"""You are a meta-optimizer improving a Python workflow function.
 
-        raw = llm(prompt, call_tag="clover_outer")
+Current seed_workflow_code (seed_workflow):
+{self.seed_workflow_code}
+
+Recent batch observations (up to 10):
+{json.dumps(observations[:10], ensure_ascii=False)}
+
+Your job: decide whether to update the SEED workflow code. If yes, output a new seed_workflow_code string.
+
+Constraints:
+- Do not add imports.
+- Keep function name seed_workflow fixed.
+- Only return STRICT JSON with the keys:
+  - update_seed_workflow: boolean
+  - new_seed_workflow_code: string
+"""
+
+        # Commit 7: schema-validated JSON decoding (OpenAI json_schema when supported).
+        schema = {
+            "name": "clover_outer_update",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "update_seed_workflow": {"type": "boolean"},
+                    "new_seed_workflow_code": {"type": "string"},
+                },
+                "required": ["update_seed_workflow", "new_seed_workflow_code"],
+            },
+            "strict": True,
+        }
+
         try:
-            patch = __import__("json").loads(str(raw))
+            obj = llm_json(prompt, role="metaoptimizer", json_schema=schema, call_tag="clover_outer")
         except Exception:
             return False
 
-        changed = False
-        mp = patch.get("meta_prompt")
-        sw = patch.get("seed_workflow_code")
-        fw = patch.get("feedback_workflow_code")
+        update = bool(obj.get("update_seed_workflow", False))
+        if not update:
+            return False
 
-        if isinstance(mp, str) and mp.strip() and mp != self.meta_prompt:
-            self.meta_prompt, changed = mp, True
-        if isinstance(sw, str) and sw.strip() and sw != self.seed_workflow_code:
-            self.seed_workflow_code, changed = sw, True
-        if isinstance(fw, str) and fw.strip() and fw != self.feedback_workflow_code:
-            self.feedback_workflow_code, changed = fw, True
+        new_code = obj.get("new_seed_workflow_code")
+        if not isinstance(new_code, str) or not new_code.strip():
+            return False
 
-        return changed
+        if new_code.strip() == self.seed_workflow_code.strip():
+            return False
 
-    def save_model(self, epoch):
-        pass
+        self.seed_workflow_code = new_code
+        return True
 
-    def load(self, path):
-        pass
+    def save_model(self, epoch: Optional[int] = None):
+        """Persist Clover state (text) so runs can resume without retraining."""
+        self.scheme_file.parent.mkdir(parents=True, exist_ok=True)
 
-    def inference(self, x):
-        pass
+        code = (
+            "# Auto-generated by CloverScheme.save_model\n"
+            "# Safe to exec/import to restore state.\n\n"
+            f"META_PROMPT = {repr(self.meta_prompt)}\n\n"
+            f"SEED_WORKFLOW_CODE = {repr(self.seed_workflow_code)}\n\n"
+            f"FEEDBACK_WORKFLOW_CODE = {repr(self.feedback_workflow_code)}\n"
+        )
+        self.scheme_file.write_text(code, encoding="utf-8")
+
+        if epoch is not None:
+            snap = self.scheme_file.parent / f"scheme_epoch_{epoch}.py"
+            snap.write_text(code, encoding="utf-8")
+
+    def load(self, path: Path):
+        if not path.exists():
+            return False
+
+        ns: Dict[str, Any] = {}
+        try:
+            txt = path.read_text(encoding="utf-8")
+            exec(compile(txt, str(path), "exec"), ns, ns)
+        except Exception:
+            return False
+
+        self.meta_prompt = ns.get("META_PROMPT", self.meta_prompt)
+        self.seed_workflow_code = ns.get("SEED_WORKFLOW_CODE", self.seed_workflow_code)
+        self.feedback_workflow_code = ns.get("FEEDBACK_WORKFLOW_CODE", self.feedback_workflow_code)
+
+        self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
+        self.feedback_workflow_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
+        return True
+
+    async def inference_with_meta(self, context: str, x: str) -> Tuple[str, float, Dict[str, Any]]:
+        """Preferred structured inference API (context + input)."""
+        reset_usage()
+        record = self.inner_loop(context, x)
+        pred = record.get("pred", "")
+        cost_usd = float(get_total_cost())
+        meta = dict(record)
+        meta["cost_usd"] = cost_usd
+        return str(pred), cost_usd, meta
+
+    async def inference(self, input_text: str) -> Tuple[str, float]:
+        """Default inference API used by BaseBenchmark. Treat input_text as `x` with empty context."""
+        pred, cost_usd, _meta = await self.inference_with_meta("", input_text)
+        return pred, cost_usd
