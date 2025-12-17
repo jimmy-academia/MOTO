@@ -62,7 +62,7 @@ class BaseScheme(ABC):
                 yield unpack_batch(batch, (ck, qk, ak))
             return
 
-    async def train_one_batch(self, batch: List[dict], train_benchmark: Any) -> Dict[str, Any]:
+    async def train_one_batch(self, batch: List[dict], calculate_score: Any) -> Dict[str, Any]:
         """
         Optional: inner-loop optimization step.
         Schemes that implement their own train() can ignore this method.
@@ -113,7 +113,7 @@ class BaseScheme(ABC):
         data = await train_benchmark.load_data(train_indices)
         keys = [train_benchmark.q_key, train_benchmark.a_key]
         if self.args.batch_mode == 'meta':
-            keys = [train_benchmark.c_key] + keys
+        keys = [train_benchmark.c_key] + keys
 
         epochs = max(1, int(getattr(self.args, "epochs", 1)))
         batch_size = max(1, int(getattr(self.args, "batch_size", 1)))

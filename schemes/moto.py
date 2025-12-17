@@ -70,8 +70,6 @@ class MotoScheme(BaseScheme):
         super().__init__(args)
         configure_llm(model=self.args.exe_model, usage=False)
         self.optimizer = OptoPrime(solution_workflow.parameters())
-        self.scheme_file = self.scheme_file.with_name("code.py")
-        
 
     async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
         logger.info(f"\n=== Starting MOTO Training ({self.args.epochs} epochs) ===")
