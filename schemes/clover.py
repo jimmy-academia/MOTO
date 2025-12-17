@@ -9,9 +9,9 @@ from myopto.utils.llm_call import llm_json
 from myopto.utils.llm_router import get_llm
 from myopto.utils.usage import get_total_cost, reset_usage
 
-from schemes.base import BaseScheme
+from .base import BaseScheme
 from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
-from schemes.inner import InnerLoopEngine
+from .ecwo import InnerLoopEngine
 
 
 class CloverScheme(BaseScheme):

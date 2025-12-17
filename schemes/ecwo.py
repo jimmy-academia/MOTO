@@ -1,4 +1,4 @@
-# schemes/clover_inner.py
+# schemes/ecwo.py
 from utils.log import logger
 from myopto.trace.runtime import RuntimeTracer, strip_trace_tags, llm, msg
 from myopto.utils.usage import get_total_cost
