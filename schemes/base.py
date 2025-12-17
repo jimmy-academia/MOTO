@@ -62,7 +62,7 @@ class BaseScheme(ABC):
                 yield unpack_batch(batch, (ck, qk, ak))
             return
 
-    async def train_one_batch(self, batch: List[dict], calculate_score: Any) -> Dict[str, Any]:
+    def train_one_batch(self, batch: List[dict], calculate_score: Any) -> Dict[str, Any]:
         """
         Optional: inner-loop optimization step.
         Schemes that implement their own train() can ignore this method.
@@ -80,7 +80,7 @@ class BaseScheme(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def inference(self, input_text: str) -> Tuple[str, float]:
+    def inference(self, input_text: str) -> Tuple[str, float]:
         """Return (prediction, cost_usd)."""
         raise NotImplementedError
 
@@ -88,7 +88,7 @@ class BaseScheme(ABC):
     # Default training scaffold
     # ----------------------------
 
-    async def train(
+    def train(
         self,
         train_benchmark: Any,
         train_indices: Sequence[int],
