@@ -1,10 +1,10 @@
-from .moto import MotoScheme
+# from .moto import MotoScheme
 from .clover import CloverScheme
 
 # from .aflow import AFlowScheme 
 
 SCHEME_REGISTRY = {
-    'moto': MotoScheme,
+    # 'moto': MotoScheme,
     'clover': CloverScheme,
     # 'aflow': AFlowScheme
 }

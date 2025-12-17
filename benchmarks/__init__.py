@@ -111,6 +111,7 @@ def get_benchmark(dataset_name: str, split: str = "test", data_dir: str = "data"
 
     benchmark.q_key = DATASET_CONFIG[dataset_name]["keys"]["q"]
     benchmark.a_key = DATASET_CONFIG[dataset_name]["keys"]["a"]
+    benchmark.c_key = DATASET_CONFIG[dataset_name]["keys"].get("c")
     return benchmark
 
 

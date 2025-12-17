@@ -5,25 +5,9 @@ META_PROMPT = (
 )
 
 SEED_WORKFLOW_CODE = """
-def seed_workflow(policy_text: str, ticket_text: str, schema_text: str, meta_prompt: str) -> str:
-    template = (
-        "{meta_prompt}\\n\\n"
-        "=== POLICY ===\\n"
-        "{policy_text}\\n\\n"
-        "=== INPUT TICKET ===\\n"
-        "{ticket_text}\\n\\n"
-        "=== OUTPUT SCHEMA (JSON) ===\\n"
-        "{schema_text}\\n\\n"
-        "Return ONLY the JSON object."
-    )
-    return llm(
-        template,
-        meta_prompt=meta_prompt,
-        policy_text=policy_text,
-        ticket_text=ticket_text,
-        schema_text=schema_text,
-        call_tag="solve",
-    )
+def seed_workflow(context: str, problem: str) -> str:
+    answer = llm(f"Solve the given problem: {problem} given the context {context}")
+    return answer
 """.lstrip()
 
 FEEDBACK_WORKFLOW_CODE = """

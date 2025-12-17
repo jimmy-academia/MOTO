@@ -14,7 +14,7 @@ from myopto.utils.usage import configure_usage
 
 
 
-def get_parser():
+def set_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--scheme', type=str, default='clover')
     # moto, optopy, optotext, (aflow)
@@ -43,10 +43,11 @@ def get_parser():
     parser.add_argument('--batch_size', type=int, default=5)
     parser.add_argument('--output_dir', type=str, default='output')
     parser.add_argument('--inner_loop_iters', type=int, default=3)
+    args = parser.parse_args()
     if args.benchmark in meta_sets:
         args.batch_mode = "meta"
-
-    return parser
+    
+    return args
 
 async def run_main(args):
 
@@ -94,8 +95,7 @@ async def run_main(args):
         logger.info(f"--- ✅ Evaluation Results Found: {scheme.result_file} (Skipping Eval) ---")
     
 def main():
-    parser = get_parser()
-    args = parser.parse_args()
+    args = set_arguments()
 
     args.train_limit = 1
     args.test_limit = 100

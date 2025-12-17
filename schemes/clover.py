@@ -56,7 +56,7 @@ class CloverScheme(BaseScheme):
             tracer = RuntimeTracer(trainable_prompt_templates=True, clear_graph_on_enter=True)
             reset_usage()
             with tracer:
-                out_msg = wf(ctx, x, CLOVERTOY_SCHEMA, self.meta_prompt)
+                out_msg = wf(ctx, x)
             pred = strip_trace_tags(str(out_msg)).strip()
 
             # ----- verifier + feedback
@@ -137,3 +137,10 @@ class CloverScheme(BaseScheme):
             self.feedback_workflow_code, changed = fw, True
 
         return changed
+
+    def save_model(self, epoch):
+        pass
+    def load(self, path):
+        pass
+    def inference(self, x):
+        pass

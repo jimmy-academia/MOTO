@@ -4,7 +4,7 @@ import random
 import asyncio
 from pathlib import Path
 
-from llm import global_llm, configure_llm, request_cost
+# from llm import global_llm, configure_llm, request_cost
 
 from myopto.trace import bundle
 from myopto.optimizers import OptoPrime
