@@ -16,12 +16,12 @@ from myopto.utils.usage import configure_usage
 
 def set_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--scheme', type=str, default='clover')
+    parser.add_argument('-s', '--scheme', type=str, default='ecwo')
     # moto, optopy, optotext, (aflow)
     
     supervised_sets = ['math', 'gsm8k', 'drop', 'hotpotqa', 'humaneval', 'mbpp']
     meta_sets = ['clovertoy']
-    parser.add_argument('-b', '--benchmark', type=str, choices=supervised_sets+meta_sets, help='Dataset name', default='clovertoy')
+    parser.add_argument('-b', '--benchmark', type=str, choices=supervised_sets+meta_sets, help='Dataset name', default='math')
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model
