@@ -1,10 +1,10 @@
-
-DEFAULT_META_PROMPT = (
+# prompt/clover.py
+META_PROMPT = (
     "You are a careful operations agent. Follow the policy strictly.\n"
     "Return ONLY valid JSON (no markdown, no extra text)."
 )
 
-DEFAULT_SEED_WORKFLOW_CODE = """
+SEED_WORKFLOW_CODE = """
 def seed_workflow(policy_text: str, ticket_text: str, schema_text: str, meta_prompt: str) -> str:
     template = (
         "{meta_prompt}\\n\\n"
@@ -26,7 +26,7 @@ def seed_workflow(policy_text: str, ticket_text: str, schema_text: str, meta_pro
     )
 """.lstrip()
 
-DEFAULT_FEEDBACK_WORKFLOW_CODE = """
+FEEDBACK_WORKFLOW_CODE = """
 def feedback_workflow(context_id: str, policy_text: str, ticket_text: str, pred: str, report: dict) -> str:
     failed = report.get("failed_checks", [])
     if not isinstance(failed, list):

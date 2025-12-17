@@ -28,8 +28,8 @@ class BaseScheme(ABC):
 
         self.output_subdir = Path(args.output_dir) / f"{args.scheme}_{args.benchmark}"
         self.output_subdir.mkdir(parents=True, exist_ok=True)
-        self.scheme_file = self.output_subdir / "prompt.py"
-        self.result_file = self.output_subdir / "score.csv"
+        self.scheme_file = self.output_subdir / "scheme.py"
+        self.result_file = self.output_subdir / "result.csv"
 
     # ----------------------------
     # Optional hooks
