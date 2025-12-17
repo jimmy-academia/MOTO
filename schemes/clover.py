@@ -1,31 +1,17 @@
 # schemes/clover.py
 import hashlib
 import json
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 from myopto.optimizers import OptoPrimeLocal
 from myopto.optimizers.structure_editor import StructureEditor
-from myopto.trace.runtime import RuntimeTracer, llm, msg, strip_trace_tags
+from myopto.trace.runtime import llm, msg
 from myopto.utils.llm_call import llm_json
 from myopto.utils.llm_router import get_llm
 from myopto.utils.usage import get_total_cost, reset_usage
 
 from schemes.base import BaseScheme
 from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
-
-from utils.log import logger
-
-
-@dataclass
-class CloverTrajectoryStep:
-    iteration: int
-    pred: str
-    feedback: str
-    wf_code_snippet: str
-    wf_code_hash: str
-    cost_usd: float
+from schemes.inner import InnerLoopEngine
 
 
 class CloverScheme(BaseScheme):
@@ -38,33 +24,34 @@ class CloverScheme(BaseScheme):
 
         self.editor = StructureEditor(
             llm=get_llm(role="optimizer"),
-            max_tokens=getattr(args, "structure_max_tokens", 12000),
+            max_tokens=self._arg("structure_max_tokens", 12000),
             require_call_tag=True,
             forbid_strip_trace_tags=True,
             forbid_imports=True,
-            verbose=getattr(args, "verbose", False),
+            verbose=self._arg("verbose", False),
         )
 
-        # IMPORTANT:
-        # OptoPrimeLocal requires `parameters` (ParameterNode list) at construction time.
-        # We do NOT have prompt template parameters until after we run a traced forward pass.
-        # So we instantiate OptoPrimeLocal lazily per step (or you could cache it).
-        self._opt_max_tokens = getattr(args, "opt_max_tokens", 12000)
-        self._opt_verbose = getattr(args, "verbose", False)
+        self._opt_max_tokens = self._arg("opt_max_tokens", 12000)
+        self._opt_verbose = self._arg("verbose", False)
 
         self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
         self.feedback_workflow_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
+
+    def _arg(self, name, default=None):
+        if hasattr(self.args, name):
+            return self.args.__dict__.get(name, default)
+        return default
 
     def train_one_batch(self, batch, calculate_score):
         reset_usage()
 
         contexts, xs, answers = batch
-        obs: List[Dict[str, Any]] = []
+        obs = []
         passed_count = 0
 
         for ctx, x, ans in zip(contexts, xs, answers):
             record = self.inner_loop(ctx, x)
-            pred = record["pred"]
+            pred = record.get("pred")
 
             score = 0.0
             try:
@@ -102,179 +89,62 @@ class CloverScheme(BaseScheme):
             "observations": obs,
         }
 
-    def _load(self, code: str, fn_name: str):
-        # Allow workflows to call llm/msg at runtime.
+    def _load(self, code, fn_name):
         return self.editor.load_function(code, fn_name, extra_globals={"llm": llm, "msg": msg})
 
-    def _call_workflow(self, wf_fn, context: str, x: str, tracer: RuntimeTracer) -> Tuple[str, Any, Any, dict, float, Optional[str]]:
-        start_cost = float(get_total_cost())
-        with tracer:
-            out_msg = wf_fn(context, x)
-
-        pred = strip_trace_tags(str(out_msg))
-        try:
-            ir = tracer.to_ir()
-        except Exception as e:
-            ir = {
-                "_error": "to_ir_failed",
-                "_exception": repr(e),
-            }
-        cost = float(get_total_cost()) - start_cost
-
-        # Primary: Msg.node (normal case)
-        output_node = getattr(out_msg, "node", None)
-        # Fallback: last LLM node executed under this tracer
-        if output_node is None:
-            output_node = getattr(tracer, "output_node", None)
-
-        # If still None: no traced LLM output
-        err = None
-        if output_node is None:
-            err = "No output_node available: indicating that workflow did not call any llm (cannot run OptoPrime backward/step)."
-            logger.warning(err)
-            pred = f"[CLOVER_ERROR]\n{err}\n\n[WORKFLOW_OUTPUT]\n{pred}"
-
-        return pred, output_node, ir, cost
-
-
-    def inner_loop(self, context: str, x: str) -> Dict[str, Any]:
+    def inner_loop(self, context, x):
         wf_code = self.seed_workflow_code
         wf_fn = self.seed_workflow_fn
 
-        trajectory: List[CloverTrajectoryStep] = []
-        last_pred = ""
-        last_cost = 0.0
+        engine = InnerLoopEngine(
+            editor=self.editor,
+            feedback_fn=self.feedback_workflow_fn,
+            make_opt=self._make_prompt_optimizer,
+            verbose=self._arg("verbose", False),
+        )
 
         sample_tag = self._sha12(f"{context}\n{x}")
+        result = engine.run(
+            wf_code,
+            wf_fn,
+            context,
+            x,
+            iterations=self._arg("inner_loop_iters", 3),
+            structure_budget=self._arg("structure_budget", 1),
+            structure_late_trigger_only=self._arg("structure_late_trigger_only", True),
+            sample_tag=sample_tag,
+        )
 
-        for it in range(getattr(self.args, "inner_loop_iters", 3)):
-            # Forward trace (this is the graph OptoPrimeLocal needs)
-            tracer = RuntimeTracer(trainable_prompt_templates=True, clear_graph_on_enter=True)
-            pred, output_node, trace_ir, cost = self._call_workflow(wf_fn, context, x, tracer)
-            last_pred = pred
-            last_cost = cost
-
-
-            # Feedback generation MUST NOT clear forward trace graph.
-            feedback = self._call_feedback_preserving_graph(trace_ir, pred, cost)
-
-            # Structure update (workflow rewrite)
-            wf_code_new = self.editor.rewrite_code(
-                code=wf_code,
-                feedback=feedback,
-                call_tag=f"clover_struct_{sample_tag}_{it}",
-            )
-            if isinstance(wf_code_new, str) and wf_code_new.strip():
-                wf_code = wf_code_new
-                wf_fn = self._load(wf_code, "seed_workflow")
-
-            # Prompt update using OptoPrimeLocal correctly:
-            # - parameters = tracer.prompt_templates.values()
-            # - backward(output_node, feedback)
-            # - step(mode="per_param")
-            try:
-                params = self._get_prompt_parameters(tracer)
-                if params and output_node is not None:
-                    opt = self._make_prompt_optimizer(params)
-                    opt.zero_feedback()
-
-                    # backward signature varies slightly; keep it simple.
-                    try:
-                        opt.backward(output_node, feedback, visualize=False)
-                    except TypeError:
-                        opt.backward(output_node, feedback)
-
-                    # Prefer per_param (your OptoPrimeLocal supports it)
-                    try:
-                        opt.step(mode="per_param", verbose=("output" if getattr(self.args, "verbose", False) else False))
-                    except TypeError:
-                        # older variants may not have mode/verbose
-                        opt.step()
-            except Exception:
-                # Clover should be resilient; but don't silently swallow in verbose mode.
-                if getattr(self.args, "verbose", False):
-                    raise
-
-            trajectory.append(
-                CloverTrajectoryStep(
-                    iteration=it,
-                    pred=pred,
-                    feedback=feedback,
-                    wf_code_snippet=wf_code[:4000],
-                    wf_code_hash=self._sha12(wf_code),
-                    cost_usd=float(cost),
-                )
-            )
+        self.seed_workflow_code = result.get("wf_code", wf_code)
+        self.seed_workflow_fn = result.get("wf_fn", wf_fn)
 
         return {
-            "pred": last_pred,
-            "iterations": len(trajectory),
-            "sample_cost_usd": float(last_cost),
-            "trajectory": [step.__dict__ for step in trajectory],
+            "pred": result.get("pred"),
+            "iterations": result.get("iterations"),
+            "sample_cost_usd": float(result.get("sample_cost_usd", 0.0)),
+            "trajectory": result.get("trajectory", []),
         }
 
-
-    def _sha12(self, s: str) -> str:
+    def _sha12(self, s):
         return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
 
-    def _get_prompt_parameters(self, tracer: RuntimeTracer) -> List[Any]:
-        """
-        Extract trainable prompt template ParameterNodes from the tracer.
-        In myopto runtime tracer, these typically live in tracer.prompt_templates (dict).
-        """
-        pt = getattr(tracer, "prompt_templates", None)
-        if isinstance(pt, dict):
-            return list(pt.values())
-        if isinstance(pt, (list, tuple)):
-            return list(pt)
-        return []
-
-    def _make_prompt_optimizer(self, parameters: List[Any]) -> OptoPrimeLocal:
-        """
-        Construct OptoPrimeLocal correctly: first arg MUST be `parameters`.
-        Then pass optional knobs if supported by this myopto version.
-        """
-        # Try the richest constructor first; fall back if this myopto version
-        # doesn't accept some kwargs.
-        tried: List[Tuple[Tuple[Any, ...], Dict[str, Any]]] = [
+    def _make_prompt_optimizer(self, parameters):
+        tried = [
             ((parameters,), {"max_tokens": self._opt_max_tokens, "log": False, "llm": get_llm(role="optimizer")}),
             ((parameters,), {"max_tokens": self._opt_max_tokens, "log": False}),
             ((parameters,), {"max_tokens": self._opt_max_tokens}),
             ((parameters,), {}),
         ]
-        last_err: Optional[Exception] = None
+        last_err = None
         for args, kwargs in tried:
             try:
                 return OptoPrimeLocal(*args, **kwargs)
             except TypeError as e:
                 last_err = e
                 continue
-        # If we got here, surface the last error; this is not recoverable.
         raise last_err if last_err is not None else TypeError("Failed to construct OptoPrimeLocal(parameters, ...)")
 
-
-    def _call_feedback_preserving_graph(self, trace_ir: dict, pred: str) -> str:
-        """
-        Generate feedback WITHOUT clearing the forward trace graph.
-
-        Key fix:
-        - Do NOT enter a RuntimeTracer with clear_graph_on_enter=True here.
-          That would wipe the workflow trace needed for OptoPrimeLocal.backward().
-
-        We try untraced first; if that fails (because your feedback workflow insists on a tracer),
-        we trace it but with clear_graph_on_enter=False so we don't destroy the forward graph.
-        """
-        try:
-            out_msg = self.feedback_workflow_fn(trace_ir, pred)
-            return strip_trace_tags(str(out_msg))
-        except Exception:
-            tracer_fb = RuntimeTracer(trainable_prompt_templates=False, clear_graph_on_enter=False)
-            with tracer_fb:
-                out_msg = self.feedback_workflow_fn(trace_ir, pred)
-            return strip_trace_tags(str(out_msg))
-
-
-    def outer_loop(self, observations: List[Dict[str, Any]]) -> bool:
+    def outer_loop(self, observations):
         prompt = f"""You are a meta-optimizer improving a Python workflow function.
 
 Current seed_workflow_code (seed_workflow):
@@ -322,17 +192,16 @@ Constraints:
             return False
 
         new_code = obj.get("new_seed_workflow_code")
-        if not isinstance(new_code, str) or not new_code.strip():
+        if not new_code or not str(new_code).strip():
             return False
 
-        if new_code.strip() == self.seed_workflow_code.strip():
+        if str(new_code).strip() == str(self.seed_workflow_code).strip():
             return False
 
-        self.seed_workflow_code = new_code
+        self.seed_workflow_code = str(new_code)
         return True
 
-    def save_model(self, epoch: Optional[int] = None):
-        """Persist Clover state (text) so runs can resume without retraining."""
+    def save_model(self, epoch=None):
         self.scheme_file.parent.mkdir(parents=True, exist_ok=True)
 
         code = (
@@ -348,11 +217,11 @@ Constraints:
             snap = self.scheme_file.parent / f"scheme_epoch_{epoch}.py"
             snap.write_text(code, encoding="utf-8")
 
-    def load(self, path: Path):
+    def load(self, path):
         if not path.exists():
             return False
 
-        ns: Dict[str, Any] = {}
+        ns = {}
         try:
             txt = path.read_text(encoding="utf-8")
             exec(compile(txt, str(path), "exec"), ns, ns)
@@ -367,7 +236,7 @@ Constraints:
         self.feedback_workflow_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
         return True
 
-    async def inference_with_meta(self, context: str, x: str) -> Tuple[str, float, Dict[str, Any]]:
+    async def inference_with_meta(self, context, x):
         reset_usage()
         record = self.inner_loop(context, x)
         pred = record.get("pred", "")
@@ -376,6 +245,6 @@ Constraints:
         meta["cost_usd"] = cost_usd
         return str(pred), cost_usd, meta
 
-    async def inference(self, input_text: str) -> Tuple[str, float]:
+    async def inference(self, input_text):
         pred, cost_usd, _meta = await self.inference_with_meta("", input_text)
         return pred, cost_usd
