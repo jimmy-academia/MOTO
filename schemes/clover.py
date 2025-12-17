@@ -177,7 +177,7 @@ class CloverScheme(BaseScheme):
             metaoptimizer=getattr(self.args, "opt_model", None),
         )
 
-    async def train_on_batch(self, batch: List[dict], train_benchmark: Any) -> Dict[str, Any]:
+    async def train_one_batch(self, batch: List[dict], train_benchmark: Any) -> Dict[str, Any]:
         # Commit-5 minimal: no outer-loop learning yet. We still persist a seed artifact.
         return {"noop": True, "batch": len(batch)}
 

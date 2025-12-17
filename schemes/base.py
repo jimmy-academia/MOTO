@@ -16,7 +16,7 @@ class BaseScheme(ABC):
     """
     Common scheme lifecycle:
 
-    - train(): default outer-loop scaffold over epochs/batches, calls train_on_batch()
+    - train(): default outer-loop scaffold over epochs/batches, calls train_one_batch()
     - save_model(): persist scheme state to self.scheme_file
     - load(): restore scheme state from disk
     - prep_test(): switch to eval mode (e.g., enable usage tracking)
@@ -62,12 +62,12 @@ class BaseScheme(ABC):
                 yield unpack_batch(batch, (ck, qk, ak))
             return
 
-    async def train_on_batch(self, batch: List[dict], train_benchmark: Any) -> Dict[str, Any]:
+    async def train_one_batch(self, batch: List[dict], train_benchmark: Any) -> Dict[str, Any]:
         """
         Optional: inner-loop optimization step.
         Schemes that implement their own train() can ignore this method.
         """
-        raise NotImplementedError("train_on_batch is not implemented for this scheme.")
+        raise NotImplementedError("train_one_batch is not implemented for this scheme.")
 
     @abstractmethod
     def save_model(self, epoch: Optional[int] = None) -> None:
@@ -100,12 +100,12 @@ class BaseScheme(ABC):
         Default outer-loop training scaffold.
 
         - Outer loop: epochs over training data.
-        - Inner loop: calls train_on_batch(batch, train_benchmark).
+        - Inner loop: calls train_one_batch(batch, train_benchmark).
         - Optional test loop: run test_benchmark every test_freq epochs.
 
         Subclasses customize behavior by overriding:
           - prep_train / prep_test
-          - train_on_batch
+          - train_one_batch
           - save_model / load
         """
         self.prep_train()
@@ -129,7 +129,7 @@ class BaseScheme(ABC):
 
         for epoch in range(1, epochs + 1):
             for step, batch in enumerate(self.iter_batches(data, batch_size, keys), start=1):
-                metrics = await self.train_on_batch(batch, train_benchmark.calculate_score)
+                metrics = await self.train_one_batch(batch, train_benchmark.calculate_score)
                 if metrics:
                     logger.info(f"[train] epoch={epoch} step={step/total_steps} metrics={metrics}")
 
