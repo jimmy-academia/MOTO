@@ -213,11 +213,6 @@ class CloverScheme(BaseScheme):
         }
 
 
-
-
-
-
-
     def _sha12(self, s: str) -> str:
         return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
 
