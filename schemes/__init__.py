@@ -1,12 +1,9 @@
-# from .moto import MotoScheme
 from .clover import CloverScheme
-
-# from .aflow import AFlowScheme 
+from .ecwo import ECWOScheme
 
 SCHEME_REGISTRY = {
-    # 'moto': MotoScheme,
     'clover': CloverScheme,
-    # 'aflow': AFlowScheme
+    'ecwo': ECWOScheme,
 }
 
 def get_scheme(scheme_name, args):

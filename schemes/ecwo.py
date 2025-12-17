@@ -1,7 +1,14 @@
 # schemes/ecwo.py
-from utils.log import logger
+import hashlib
+
+from utils.logs import logger
 from myopto.trace.runtime import RuntimeTracer, strip_trace_tags, llm, msg
-from myopto.utils.usage import get_total_cost
+from myopto.optimizers import OptoPrimeLocal
+from myopto.optimizers.structure_editor import StructureEditor
+from myopto.utils.llm_router import get_llm
+from myopto.utils.usage import get_total_cost, reset_usage
+
+from .base import BaseScheme
 
 class ExecutionResult:
     def __init__(self, ok, pred, outcome, output_node, trace_ir, cost_usd, error):
@@ -193,8 +200,241 @@ class InnerLoopEngine:
 
 
 def _sha12(s):
-    import hashlib
     return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
 
 
 # How to run: python debug/clover_inner_demo.py
+
+DEFAULT_WORKFLOW_CODE = """
+def seed_workflow(context, question):
+    text = context.strip()
+    if text:
+        return llm(f"Use the given context to answer the question. Context: {text}\nQuestion: {question}")
+    return llm(f"Answer the question directly. Question: {question}")
+""".lstrip()
+
+
+def _feedback_with_answer(answer):
+    ans = str(answer).strip()
+    def fn(trace_ir, outcome):
+        notes = ["Ground truth answer:", ans]
+        err = trace_ir.get("_error")
+        if err:
+            notes.append(f"Workflow error: {err}")
+        if outcome:
+            notes.append("Previous attempt:")
+            notes.append(outcome)
+        notes.append("Rewrite the workflow output so it matches the ground truth exactly.")
+        return "\n".join(notes)
+    return fn
+
+
+def _feedback_no_answer():
+    def fn(trace_ir, outcome):
+        hints = []
+        err = trace_ir.get("_error")
+        if err:
+            hints.append(f"Workflow error: {err}")
+        if outcome:
+            hints.append(outcome)
+        hints.append("Return a clearer, checkable solution even without a provided label.")
+        return "\n".join(hints)
+    return fn
+
+
+class ECWOScheme(BaseScheme):
+    def __init__(self, args):
+        super().__init__(args)
+        self.args = args
+        self.seed_workflow_code = DEFAULT_WORKFLOW_CODE
+
+        self.editor = StructureEditor(
+            llm=get_llm(role="optimizer"),
+            max_tokens=self._arg("structure_max_tokens", 8000),
+            require_call_tag=True,
+            forbid_strip_trace_tags=True,
+            forbid_imports=True,
+            verbose=self._arg("verbose", False),
+        )
+
+        self._opt_max_tokens = self._arg("opt_max_tokens", 8000)
+        self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
+
+    def _arg(self, name, default=None):
+        if hasattr(self.args, name):
+            return self.args.__dict__.get(name, default)
+        return default
+
+    def _load(self, code, fn_name):
+        return self.editor.load_function(code, fn_name, extra_globals={"llm": llm, "msg": msg})
+
+    def _make_prompt_optimizer(self, parameters):
+        options = [
+            ({"max_tokens": self._opt_max_tokens, "log": False, "llm": get_llm(role="optimizer")}),
+            ({"max_tokens": self._opt_max_tokens, "log": False}),
+            ({"max_tokens": self._opt_max_tokens}),
+            ({})
+        ]
+        for kw in options:
+            try:
+                return OptoPrimeLocal(parameters, **kw)
+            except TypeError:
+                continue
+        return OptoPrimeLocal(parameters)
+
+    def _select_feedback(self, answer):
+        if self._arg("blind_feedback", False) or answer is None:
+            return _feedback_no_answer()
+        return _feedback_with_answer(answer)
+
+    def _run_inner(self, context, question, answer):
+        engine = InnerLoopEngine(
+            editor=self.editor,
+            feedback_fn=self._select_feedback(answer),
+            make_opt=self._make_prompt_optimizer,
+            verbose=self._arg("verbose", False),
+        )
+
+        tag = _sha12(f"{context}\n{question}")
+        result = engine.run(
+            self.seed_workflow_code,
+            self.seed_workflow_fn,
+            context,
+            question,
+            iterations=self._arg("inner_loop_iters", 3),
+            structure_budget=self._arg("structure_budget", 1),
+            structure_late_trigger_only=self._arg("structure_late_trigger_only", True),
+            sample_tag=tag,
+        )
+
+        self.seed_workflow_code = result.get("wf_code", self.seed_workflow_code)
+        self.seed_workflow_fn = result.get("wf_fn", self.seed_workflow_fn)
+
+        return {
+            "pred": result.get("pred"),
+            "iterations": result.get("iterations"),
+            "sample_cost_usd": float(result.get("sample_cost_usd", 0.0)),
+            "trajectory": result.get("trajectory", []),
+        }
+
+    def train_one_batch(self, batch, calculate_score):
+        reset_usage()
+        obs = []
+        passed_count = 0
+
+        if self.args.batch_mode == "meta":
+            contexts, questions, answers = batch
+        else:
+            questions, answers = batch
+            contexts = [""] * len(questions)
+
+        for ctx, q, ans in zip(contexts, questions, answers):
+            record = self._run_inner(ctx, q, ans)
+            pred = record.get("pred")
+
+            try:
+                score, _extra = calculate_score(ans, pred)
+            except TypeError:
+                score, _extra = calculate_score(pred, ans)
+
+            passed = bool(score == 1 or score == 1.0)
+            if passed:
+                passed_count += 1
+
+            record["score"] = float(score)
+            record["passed"] = passed
+            record["context"] = ctx
+            record["input"] = q
+            obs.append(record)
+
+        batch_size = len(answers)
+        return {
+            "cost_usd": float(get_total_cost()),
+            "passed": passed_count,
+            "batch_size": batch_size,
+            "all_passed": passed_count == batch_size,
+            "observations": obs,
+        }
+
+    async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
+        self.prep_train()
+
+        data = await train_benchmark.load_data(train_indices)
+        keys = [train_benchmark.q_key, train_benchmark.a_key]
+        if self.args.batch_mode == "meta":
+            keys = [train_benchmark.c_key] + keys
+
+        epochs = max(1, int(self._arg("epochs", 1)))
+        batch_size = max(1, int(self._arg("batch_size", 1)))
+        total_steps = (len(data) + batch_size - 1) // batch_size
+
+        bench_name = ""
+        if hasattr(self.args, "benchmark"):
+            bench_name = self.args.benchmark
+        logger.info(f"[train] scheme=ecwo benchmark={bench_name} epochs={epochs} batch_size={batch_size} n_train={len(data)}")
+
+        for epoch in range(1, epochs + 1):
+            for step, batch in enumerate(self.iter_batches(data, batch_size, keys), start=1):
+                metrics = self.train_one_batch(batch, train_benchmark.calculate_score)
+                if metrics:
+                    logger.info(f"[train] epoch={epoch} step={step/total_steps} metrics={metrics}")
+
+            self.save_model(epoch=epoch)
+
+            if test_benchmark and test_indices:
+                if epoch % max(1, int(test_freq)) == 0:
+                    logger.info(f"[test] epoch={epoch} n_test={len(test_indices)}")
+                    self.prep_test()
+                    max_tasks = 50
+                    if hasattr(test_benchmark, "max_concurrent_tasks"):
+                        max_tasks = test_benchmark.max_concurrent_tasks
+                    await test_benchmark.run_baseline(
+                        agent=self.inference,
+                        specific_indices=list(test_indices),
+                        max_concurrent_tasks=max_tasks,
+                    )
+                    self.prep_train()
+
+        self.save_model()
+
+    def save_model(self, epoch=None):
+        self.scheme_file.parent.mkdir(parents=True, exist_ok=True)
+
+        code = (
+            "# Auto-generated by ECWOScheme.save_model\n"
+            "# Safe to exec/import to restore state.\n\n"
+            f"SEED_WORKFLOW_CODE = {repr(self.seed_workflow_code)}\n"
+        )
+        self.scheme_file.write_text(code, encoding="utf-8")
+
+        if epoch is not None:
+            snap = self.scheme_file.parent / f"scheme_epoch_{epoch}.py"
+            snap.write_text(code, encoding="utf-8")
+
+    def load(self, path):
+        if not path.exists():
+            return False
+
+        ns = {}
+        try:
+            txt = path.read_text(encoding="utf-8")
+            exec(compile(txt, str(path), "exec"), ns, ns)
+        except Exception:
+            return False
+
+        self.seed_workflow_code = ns.get("SEED_WORKFLOW_CODE", self.seed_workflow_code)
+        self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
+        return True
+
+    async def inference_with_meta(self, context, x):
+        reset_usage()
+        record = self._run_inner(context, x, None)
+        pred = record.get("pred", "")
+        cost_usd = float(get_total_cost())
+        meta = dict(record)
+        meta["cost_usd"] = cost_usd
+        return str(pred), cost_usd, meta
+
+    async def inference(self, input_text):
+        pred, cost_usd, _meta = await self.inference_with_meta("", input_text)
+        return pred, cost_usd

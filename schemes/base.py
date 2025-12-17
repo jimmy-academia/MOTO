@@ -88,7 +88,7 @@ class BaseScheme(ABC):
     # Default training scaffold
     # ----------------------------
 
-    def train(
+    async def train(
         self,
         train_benchmark: Any,
         train_indices: Sequence[int],
