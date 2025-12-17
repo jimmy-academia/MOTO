@@ -13,6 +13,7 @@ from myopto.utils.usage import get_total_cost, reset_usage
 
 from schemes.base import BaseScheme
 
+from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
 
 @dataclass
 class CloverTrajectoryStep:
@@ -28,9 +29,9 @@ class CloverScheme(BaseScheme):
     def __init__(self, args):
         super().__init__(args)
         self.args = args
-        self.seed_workflow_code: str = args.seed_workflow
-        self.meta_prompt: str = args.meta_prompt
-        self.feedback_workflow_code: str = args.feedback_workflow
+        self.meta_prompt = META_PROMPT
+        self.seed_workflow_code = SEED_WORKFLOW_CODE
+        self.feedback_workflow_code = FEEDBACK_WORKFLOW_CODE
 
         self.editor = StructureEditor(
             llm=get_llm(role="optimizer"),
