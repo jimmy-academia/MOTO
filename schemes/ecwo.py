@@ -71,7 +71,7 @@ def run_feedback(feedback_fn, trace_ir, outcome, trace_domain=None):
 
 
 def propose_structure_edit(editor, wf_code, feedback_text, call_tag):
-    new_code = editor.rewrite_code(code=wf_code, feedback=feedback_text, call_tag=call_tag)
+    new_code = editor.rewrite_function(wf_code, feedback=feedback_text, call_tag=call_tag)
     if new_code:
         text = str(new_code)
         if text.strip():
@@ -86,7 +86,7 @@ def _structure_error_text(label, exc):
 def validate_structure_edit(editor, new_code, context, x):
     trace_ir = {}
     try:
-        new_fn = editor.load_function(new_code, "seed_workflow", extra_globals={"llm": llm, "msg": msg})
+        new_fn = editor.load_function(new_code, func_name="seed_workflow", extra_globals={"llm": llm, "msg": msg})
     except Exception as e:
         err = _structure_error_text("load_failed", e)
         trace_ir = {"_error": "structure_load_failed", "_exception": err}
@@ -207,11 +207,9 @@ def _sha12(s):
 
 DEFAULT_WORKFLOW_CODE = """
 def seed_workflow(context, question):
-    text = context.strip()
-    if text:
-        return llm(f"Use the given context to answer the question. Context: {text}\nQuestion: {question}")
-    return llm(f"Answer the question directly. Question: {question}")
+    return llm(f"Use the given context to answer the question. Context: {text} Question: {question}")
 """.lstrip()
+print(repr(DEFAULT_WORKFLOW_CODE))
 
 
 def _feedback_with_answer(answer):
@@ -266,7 +264,7 @@ class ECWOScheme(BaseScheme):
         return default
 
     def _load(self, code, fn_name):
-        return self.editor.load_function(code, fn_name, extra_globals={"llm": llm, "msg": msg})
+        return self.editor.load_function(code, func_name=fn_name, extra_globals={"llm": llm, "msg": msg})
 
     def _make_prompt_optimizer(self, parameters):
         options = [
@@ -331,11 +329,7 @@ class ECWOScheme(BaseScheme):
         for ctx, q, ans in zip(contexts, questions, answers):
             record = self._run_inner(ctx, q, ans)
             pred = record.get("pred")
-
-            try:
-                score, _extra = calculate_score(ans, pred)
-            except TypeError:
-                score, _extra = calculate_score(pred, ans)
+            score, _extra = calculate_score(ans, pred)
 
             passed = bool(score == 1 or score == 1.0)
             if passed:
@@ -355,47 +349,6 @@ class ECWOScheme(BaseScheme):
             "all_passed": passed_count == batch_size,
             "observations": obs,
         }
-
-    async def train(self, train_benchmark, train_indices, test_benchmark=None, test_indices=None, test_freq=1):
-        self.prep_train()
-
-        data = await train_benchmark.load_data(train_indices)
-        keys = [train_benchmark.q_key, train_benchmark.a_key]
-        if self.args.batch_mode == "meta":
-            keys = [train_benchmark.c_key] + keys
-
-        epochs = max(1, int(self._arg("epochs", 1)))
-        batch_size = max(1, int(self._arg("batch_size", 1)))
-        total_steps = (len(data) + batch_size - 1) // batch_size
-
-        bench_name = ""
-        if hasattr(self.args, "benchmark"):
-            bench_name = self.args.benchmark
-        logger.info(f"[train] scheme=ecwo benchmark={bench_name} epochs={epochs} batch_size={batch_size} n_train={len(data)}")
-
-        for epoch in range(1, epochs + 1):
-            for step, batch in enumerate(self.iter_batches(data, batch_size, keys), start=1):
-                metrics = self.train_one_batch(batch, train_benchmark.calculate_score)
-                if metrics:
-                    logger.info(f"[train] epoch={epoch} step={step/total_steps} metrics={metrics}")
-
-            self.save_model(epoch=epoch)
-
-            if test_benchmark and test_indices:
-                if epoch % max(1, int(test_freq)) == 0:
-                    logger.info(f"[test] epoch={epoch} n_test={len(test_indices)}")
-                    self.prep_test()
-                    max_tasks = 50
-                    if hasattr(test_benchmark, "max_concurrent_tasks"):
-                        max_tasks = test_benchmark.max_concurrent_tasks
-                    await test_benchmark.run_baseline(
-                        agent=self.inference,
-                        specific_indices=list(test_indices),
-                        max_concurrent_tasks=max_tasks,
-                    )
-                    self.prep_train()
-
-        self.save_model()
 
     def save_model(self, epoch=None):
         self.scheme_file.parent.mkdir(parents=True, exist_ok=True)

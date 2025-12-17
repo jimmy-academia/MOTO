@@ -103,7 +103,7 @@ def main():
     args.epochs = 1
     args.val_interval = 1
 
-    logger.info(f" --- 🤖 Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
+    logger.info(f" --- 🤖 MetaOpt: {args.mopt_model} Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
     logger.debug("Arguments:\n" + good_json_dump(vars(args)))
     # for trace operation
     os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
