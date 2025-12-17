@@ -47,7 +47,7 @@ DATASET_CONFIG = {
     # new datasets
     "clovertoy": {
         "filename": "clovertoy",
-        "keys": {"q": "problem", "a": "output"},
+        "keys": {"c":"context", "q": "problem", "a": "output"},
         "extractor": "direct",
     },
 }

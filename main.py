@@ -14,16 +14,16 @@ def get_parser():
     parser.add_argument('-s', '--scheme', type=str, default='clover')
     # moto, optopy, optotext, (aflow)
     
-    past = ['math', 'gsm8k', 'drop', 'hotpotqa', 'humaneval', 'mbpp']
-    new = ['clovertoy']
-    parser.add_argument('-b', '--benchmark', type=str, choices=past+new, help='Dataset name', default='clovertoy')
+    supervised_sets = ['math', 'gsm8k', 'drop', 'hotpotqa', 'humaneval', 'mbpp']
+    meta_sets = ['clovertoy']
+    parser.add_argument('-b', '--benchmark', type=str, choices=supervised_sets+meta_sets, help='Dataset name', default='clovertoy')
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model
+    parser.add_argument('-m', '--mopt_model', type=str, default='gpt-5-nano', help='Meta-Optimizer LLM')
     parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-nano', help='Optimizer LLM')
     parser.add_argument('-e', '--exe_model', type=str, default='gpt-5-nano', help='Executor LLM')
-    # parser.add_argument('-e', '--exe_model', type=str, default='gpt-4o-mini', help='Executor LLM')
-    parser.add_argument('-m', '--mode', type=str, default='baseline', help='mode for custome moto optimization, choose `baseline` or `ABC...`')
+    parser.add_argument('--batch_mode', type=str, default='sample', help='mode for making data batches.')
     # Limits
     parser.add_argument('--train_limit', type=int, default=10)
     parser.add_argument('--test_limit', type=int, default=10)
@@ -38,6 +38,9 @@ def get_parser():
     parser.add_argument('--batch_size', type=int, default=5)
     parser.add_argument('--output_dir', type=str, default='output')
     
+    if args.benchmark in meta_sets:
+        args.batch_mode = "meta"
+
     return parser
 
 async def run_main(args):

@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from utils.logs import logger
 
+from collections import defaultdict
+from typing import Any, Dict, Iterator, List, Tuple
+
+
 
 class BaseScheme(ABC):
     """
@@ -24,10 +28,7 @@ class BaseScheme(ABC):
 
         self.output_subdir = Path(args.output_dir) / f"{args.scheme}_{args.benchmark}"
         self.output_subdir.mkdir(parents=True, exist_ok=True)
-
-        # Always persist scheme artifacts with a *.py suffix.
-        # (Even if the artifact is "just a prompt", we still store it in a .py file.)
-        self.scheme_file = (self.output_subdir / "prompt").with_name("code.py")
+        self.scheme_file = self.output_subdir / "prompt.py"
         self.result_file = self.output_subdir / "score.csv"
 
     # ----------------------------
@@ -42,22 +43,36 @@ class BaseScheme(ABC):
         """Optional hook called before evaluation / baseline runs."""
         return
 
+    def iter_batches(self, data: List[dict], batch_size: int, keys: List[str]) -> Iterator[Any]:
+        xs = list(data)
+        random.shuffle(xs)
+        def unpack_batch(batch, keys):
+            return tuple([ex[k] for ex in batch] for k in keys)
+
+        if self.args.batch_mode == "sample":
+            qk, ak = keys
+            for i in range(0, len(xs), batch_size):
+                batch = xs[i : i + batch_size]
+                yield unpack_batch(batch, (qk, ak))
+            return
+        if self.args.batch_mode == "meta":
+            ck, qk, ak = keys
+            for i in range(0, len(xs), batch_size):
+                batch = xs[i : i + batch_size]
+                yield unpack_batch(batch, (ck, qk, ak))
+            return
+
     async def train_on_batch(self, batch: List[dict], train_benchmark: Any) -> Dict[str, Any]:
         """
         Optional: inner-loop optimization step.
-
-        Schemes that want to use BaseScheme.train() should override this.
         Schemes that implement their own train() can ignore this method.
         """
         raise NotImplementedError("train_on_batch is not implemented for this scheme.")
 
+    @abstractmethod
     def save_model(self, epoch: Optional[int] = None) -> None:
-        """Optional: persist scheme state to self.scheme_file."""
+        """Persist scheme state to self.scheme_file."""
         return
-
-    # ----------------------------
-    # Required API
-    # ----------------------------
 
     @abstractmethod
     def load(self, path: Path) -> bool:
@@ -95,37 +110,35 @@ class BaseScheme(ABC):
         """
         self.prep_train()
 
-        train_data = await train_benchmark.load_data(list(train_indices))
+        data = await train_benchmark.load_data(train_indices)
+        keys = [train_benchmark.q_key, train_benchmark.a_key]
+        if self.args.batch_mode == 'meta':
+        keys = [train_benchmark.c_key] + keys
 
         epochs = max(1, int(getattr(self.args, "epochs", 1)))
         batch_size = max(1, int(getattr(self.args, "batch_size", 1)))
         test_freq = max(1, int(test_freq))
+        total_steps = (len(data) + batch_size - 1) // batch_size
+
 
         logger.info(
             f"[train] scheme={getattr(self.args, 'scheme', '')} "
             f"benchmark={getattr(self.args, 'benchmark', '')} "
-            f"epochs={epochs} batch_size={batch_size} n_train={len(train_data)} test_freq={test_freq}"
+            f"epochs={epochs} batch_size={batch_size} n_train={len(data)} test_freq={test_freq}"
         )
 
         for epoch in range(1, epochs + 1):
-            if len(train_data) > 1:
-                random.shuffle(train_data)
-
-            for start in range(0, len(train_data), batch_size):
-                batch = train_data[start : start + batch_size]
-                metrics = await self.train_on_batch(batch, train_benchmark)
+            for step, batch in enumerate(self.iter_batches(data, batch_size, keys), start=1):
+                metrics = await self.train_on_batch(batch, train_benchmark.calculate_score)
                 if metrics:
-                    logger.info(f"[train] epoch={epoch} step={start//batch_size} metrics={metrics}")
+                    logger.info(f"[train] epoch={epoch} step={step/total_steps} metrics={metrics}")
 
-            # Persist after each epoch (so interrupted runs still leave an artifact).
             self.save_model(epoch=epoch)
 
             # Periodic test evaluation.
             if (
-                test_benchmark is not None
-                and test_indices is not None
-                and len(test_indices) > 0
-                and (epoch % test_freq == 0)
+                test_benchmark is not None and test_indices is not None
+                and len(test_indices) > 0 and (epoch % test_freq == 0)
             ):
                 logger.info(f"[test] epoch={epoch} n_test={len(test_indices)}")
                 self.prep_test()
@@ -139,6 +152,4 @@ class BaseScheme(ABC):
                 self.prep_train()
 
         # Ensure there's always a materialized artifact file after train().
-        if not self.scheme_file.exists():
-            logger.warning(f"[train] {self.scheme_file} not created; writing placeholder.")
-            self.scheme_file.write_text("# Placeholder scheme artifact\n", encoding="utf-8")
+        self.save_model()
