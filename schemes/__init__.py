@@ -1,8 +1,8 @@
-from .clover import CloverScheme
+# from .clover import CloverScheme
 from .ecwo import ECWOScheme
 
 SCHEME_REGISTRY = {
-    'clover': CloverScheme,
+    # 'clover': CloverScheme,
     'ecwo': ECWOScheme,
 }
 

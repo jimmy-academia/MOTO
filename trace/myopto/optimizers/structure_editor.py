@@ -350,8 +350,8 @@ class StructureEditor:
     def load_function(
         self,
         code: str,
-        *,
         func_name: Optional[str] = None,
+        *,
         extra_globals: Optional[Dict[str, Any]] = None,
     ):
         g: Dict[str, Any] = {}

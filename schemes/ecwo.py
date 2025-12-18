@@ -17,7 +17,6 @@ from .beam import BeamInnerLoopEngine
 # -------------------------------------------------------------------------
 
 SEED_WORKFLOW_CODE = """
-@bundle(trainable=True)
 def seed_workflow(context: str, problem: str) -> str:
     # A simple Chain-of-Thought starter
     plan = llm(f"Given context: {context}\\nProblem: {problem}\\nDraft a plan to solve this.", call_tag="plan")
@@ -26,7 +25,6 @@ def seed_workflow(context: str, problem: str) -> str:
 """.lstrip()
 
 FEEDBACK_WORKFLOW_CODE = """
-@bundle(trainable=True)
 def feedback_workflow(pred: str, signal: dict) -> dict:
     # Extracts ground_truth from signal if available (training),
     # otherwise acts as a self-critic (inference).

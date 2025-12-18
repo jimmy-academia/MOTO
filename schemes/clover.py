@@ -11,7 +11,7 @@ from myopto.utils.usage import get_total_cost, reset_usage
 
 from .base import BaseScheme
 from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
-from .ecwo import InnerLoopEngine
+# from .ecwo import InnerLoopEngine
 
 
 class CloverScheme(BaseScheme):
