@@ -382,10 +382,9 @@ class CustomLLM(AbstractModel):
             config['model'] = self.model_name
         return self._model.chat.completions.create(**config)
 
-
-# ---------------------------------------------------------------------------
+# --------------------------------------------------
 # Default LLM backend selection
-# ---------------------------------------------------------------------------
+# --------------------------------------------------
 TRACE_DEFAULT_LLM_BACKEND = os.getenv('TRACE_DEFAULT_LLM_BACKEND', 'LiteLLM')
 if TRACE_DEFAULT_LLM_BACKEND == 'AutoGen':
     print("Using AutoGen as the default LLM backend.")
