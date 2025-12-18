@@ -317,7 +317,7 @@ class TextGrad(Optimizer):
         **kwargs,
     ):
         super().__init__(parameters, *args, **kwargs)
-        self.llm = llm or LLM()
+        self.llm = llm or LLM(role="optimizer")
         self.print_limit = 100
         self.max_tokens = max_tokens
         self.new_variable_tags = ["<IMPROVED_VARIABLE>", "</IMPROVED_VARIABLE>"]

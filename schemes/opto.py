@@ -3,11 +3,6 @@ from pathlib import Path
 
 from llm import get_key, LLMClient
 
-os.environ["TRACE_DEFAULT_LLM_BACKEND"] = "LiteLLM"
-os.environ["OPENAI_API_KEY"] = get_key()
-os.environ["TRACE_LITELLM_MODEL"] = opt_model
-os.environ["LITELLM_LOG"] = "INFO"
-
 from opto.trace import bundle
 from opto.optimizers import OptoPrime
 from .base import BaseScheme

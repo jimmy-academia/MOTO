@@ -1,5 +1,5 @@
 # trace/myopto/utils/llm.py
-from typing import List, Tuple, Dict, Any, Callable, Union
+from typing import List, Tuple, Dict, Any, Callable, Union, Optional
 import os
 import time
 import json
@@ -11,6 +11,59 @@ try:
     import autogen  # We import autogen here to avoid the need of installing autogen
 except ImportError:
     autogen = None
+
+
+# ---------------------------------------------------------------------------
+# Helper to resolve model from llm_router config (lazy import to avoid circular)
+# ---------------------------------------------------------------------------
+def _get_router_model_for_role(role: Optional[str]) -> Optional[str]:
+    """
+    Check llm_router._ROLE_CFG for a model configured via set_role_models().
+    Returns None if no config is found (caller should fall back to env vars).
+    Uses lazy import to avoid circular dependency.
+    """
+    if role is None:
+        return None
+    try:
+        # Lazy import to avoid circular dependency (llm_router imports from this file)
+        from myopto.utils import llm_router
+        r = llm_router._norm_role(role)
+        with llm_router._ROLE_CFG_LOCK:
+            cfg = llm_router._ROLE_CFG.get(r)
+            if cfg is not None and cfg.model is not None:
+                return cfg.model
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return None
+
+
+def _get_router_config_for_role(role: Optional[str]) -> Optional[Dict[str, Any]]:
+    """
+    Get the full config dict from llm_router for a given role.
+    Returns None if no config found.
+    """
+    if role is None:
+        return None
+    try:
+        from myopto.utils import llm_router
+        r = llm_router._norm_role(role)
+        with llm_router._ROLE_CFG_LOCK:
+            cfg = llm_router._ROLE_CFG.get(r)
+            if cfg is not None:
+                return {
+                    "model": cfg.model,
+                    "base_url": cfg.base_url,
+                    "api_key": cfg.api_key,
+                    "reset_freq": cfg.reset_freq,
+                    "cache": cfg.cache,
+                }
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return None
 
 
 class AbstractModel:
@@ -94,10 +147,16 @@ class AutoGenLLM(AbstractModel):
         if autogen is None:
             raise ImportError("autogen is not installed but AutoGenLLM was requested.")
 
-        # role/env-driven model selection (optional)
+        # PRIORITY 1: Check llm_router config (set via set_role_models())
+        if model is None:
+            model = _get_router_model_for_role(role)
+
+        # PRIORITY 2: role/env-driven model selection
         if model is None and role is not None:
             suffix = str(role).upper()
             model = os.environ.get(f"TRACE_LLM_MODEL_{suffix}") or os.environ.get(f"TRACE_AUTOGEN_MODEL_{suffix}")
+        
+        # PRIORITY 3: global env var
         if model is None:
             model = os.environ.get("TRACE_AUTOGEN_MODEL")
 
@@ -158,7 +217,7 @@ def auto_construct_oai_config_list_from_env() -> List:
     Collect various API keys saved in the environment and return a format like:
     [{"model": "gpt-4", "api_key": xxx}, {"model": "claude-3.5-sonnet", "api_key": xxx}]
 
-    Note this is a lazy function that defaults to gpt-40 and claude-3.5-sonnet.
+    Note this is a lazy function that defaults to gpt-4o and claude-3.5-sonnet.
     If you want to specify your own model, please provide an OAI_CONFIG_LIST in the environment or as a file
     """
     config_list = []
@@ -180,9 +239,13 @@ class LiteLLM(AbstractModel):
     """
     This is an LLM backend supported by LiteLLM library.
 
-    Role-aware model selection:
-        TRACE_LITELLM_MODEL_<ROLE> or TRACE_LLM_MODEL_<ROLE>
-        (ROLE in {EXECUTOR, OPTIMIZER, METAOPTIMIZER})
+    Model resolution order:
+        1. Explicit `model` argument passed to __init__
+        2. llm_router config (set via set_role_models())
+        3. Role-specific env var: TRACE_LLM_MODEL_<ROLE> or TRACE_LITELLM_MODEL_<ROLE>
+        4. Global env var: TRACE_LITELLM_MODEL
+        5. Deprecated env var: DEFAULT_LITELLM_MODEL
+        6. Default: 'gpt-4o'
     """
 
     def __init__(
@@ -192,20 +255,34 @@ class LiteLLM(AbstractModel):
         cache=True,
         role: Union[str, None] = None,
     ) -> None:
+        # PRIORITY 1: Explicit model argument (already set, skip if provided)
+        
+        # PRIORITY 2: Check llm_router config (set via set_role_models())
+        if model is None:
+            model = _get_router_model_for_role(role)
+
+        # PRIORITY 3: Role-specific environment variables
         if model is None and role is not None:
             suffix = str(role).upper()
             model = os.environ.get(f"TRACE_LLM_MODEL_{suffix}") or os.environ.get(f"TRACE_LITELLM_MODEL_{suffix}")
 
+        # PRIORITY 4: Global TRACE_LITELLM_MODEL env var
         if model is None:
             model = os.environ.get('TRACE_LITELLM_MODEL')
-            if model is None:
+        
+        # PRIORITY 5: Deprecated DEFAULT_LITELLM_MODEL (with warning)
+        if model is None:
+            deprecated_model = os.environ.get('DEFAULT_LITELLM_MODEL')
+            if deprecated_model is not None:
                 warnings.warn(
-                    "TRACE_LITELLM_MODEL environment variable is not found when loading the default model for LiteLLM. "
-                    "Attempt to load the default model from DEFAULT_LITELLM_MODEL environment variable. "
-                    "The usage of DEFAULT_LITELLM_MODEL will be deprecated. "
-                    "Please use the environment variable TRACE_LITELLM_MODEL for setting the default model name for LiteLLM."
+                    "DEFAULT_LITELLM_MODEL environment variable is deprecated. "
+                    "Please use set_role_models() or TRACE_LITELLM_MODEL instead."
                 )
-                model = os.environ.get('DEFAULT_LITELLM_MODEL', 'gpt-4o')
+                model = deprecated_model
+        
+        # PRIORITY 6: Default fallback
+        if model is None:
+            model = 'gpt-4o'
 
         self.model_name = model
         self.cache = cache
@@ -233,6 +310,13 @@ class CustomLLM(AbstractModel):
     """
     This is for Custom server's API endpoints that are OpenAI Compatible.
     Such server includes LiteLLM proxy server.
+    
+    Config resolution order:
+        1. Explicit arguments passed to __init__
+        2. llm_router config (set via set_role_models() / set_role_config())
+        3. Role-specific env vars
+        4. Global env vars
+        5. Defaults
     """
 
     def __init__(
@@ -244,23 +328,38 @@ class CustomLLM(AbstractModel):
         base_url: Union[str, None] = None,
         api_key: Union[str, None] = None,
     ) -> None:
-        # Role-aware env resolution (so model/base_url/api_key can be configured per role)
+        # PRIORITY 1: Check llm_router config for all settings
+        router_cfg = _get_router_config_for_role(role) if (model is None or base_url is None or api_key is None) else None
+        
+        # Role suffix for env var lookups
         suffix = str(role).upper() if role is not None else None
 
+        # Model resolution
         if model is None:
-            if suffix:
+            if router_cfg and router_cfg.get("model"):
+                model = router_cfg["model"]
+            elif suffix:
                 model = os.environ.get(f"TRACE_LLM_MODEL_{suffix}") or os.environ.get(f"TRACE_CUSTOMLLM_MODEL_{suffix}")
-            model = model or os.environ.get('TRACE_CUSTOMLLM_MODEL', 'gpt-4o')
+            if model is None:
+                model = os.environ.get('TRACE_CUSTOMLLM_MODEL', 'gpt-4o')
 
+        # Base URL resolution
         if base_url is None:
-            if suffix:
+            if router_cfg and router_cfg.get("base_url"):
+                base_url = router_cfg["base_url"]
+            elif suffix:
                 base_url = os.environ.get(f"TRACE_CUSTOMLLM_URL_{suffix}") or os.environ.get("TRACE_CUSTOMLLM_URL")
-            base_url = base_url or os.environ.get('TRACE_CUSTOMLLM_URL', 'http://xx.xx.xxx.xx:4000')
+            if base_url is None:
+                base_url = os.environ.get('TRACE_CUSTOMLLM_URL', 'http://localhost:4000')
 
+        # API key resolution
         if api_key is None:
-            if suffix:
+            if router_cfg and router_cfg.get("api_key"):
+                api_key = router_cfg["api_key"]
+            elif suffix:
                 api_key = os.environ.get(f"TRACE_CUSTOMLLM_API_KEY_{suffix}") or os.environ.get("TRACE_CUSTOMLLM_API_KEY")
-            api_key = api_key or os.environ.get('TRACE_CUSTOMLLM_API_KEY', 'sk-Xhg...')  # assume server has an API key
+            if api_key is None:
+                api_key = os.environ.get('TRACE_CUSTOMLLM_API_KEY', 'sk-placeholder')
 
         self.model_name = model
         self.cache = cache
@@ -284,6 +383,9 @@ class CustomLLM(AbstractModel):
         return self._model.chat.completions.create(**config)
 
 
+# ---------------------------------------------------------------------------
+# Default LLM backend selection
+# ---------------------------------------------------------------------------
 TRACE_DEFAULT_LLM_BACKEND = os.getenv('TRACE_DEFAULT_LLM_BACKEND', 'LiteLLM')
 if TRACE_DEFAULT_LLM_BACKEND == 'AutoGen':
     print("Using AutoGen as the default LLM backend.")
