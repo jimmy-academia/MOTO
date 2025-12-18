@@ -21,6 +21,8 @@ from myopto.optimizers.structure_editor import StructureEditor
 from myopto.optimizers import OptoPrimeLocal
 
 
+from utils.logs import logger
+
 @dataclass
 class Candidate:
     """
@@ -85,6 +87,8 @@ class BeamInnerLoopEngine:
         Returns:
             (best_candidate, trajectory) - Best candidate found and optimization history
         """
+        logger.info('[ECWO] running beam search')
+
         # 1. Initialize: Load the seed function from code string
         initial_func = self.editor.load_function(
             seed_code, 

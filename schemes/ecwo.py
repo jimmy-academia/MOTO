@@ -20,6 +20,7 @@ from myopto.utils.usage import get_total_cost, reset_usage
 
 from .base import BaseScheme
 from .beam import BeamInnerLoopEngine
+from utils.logs import logger
 
 # -------------------------------------------------------------------------
 # Default Code Templates
@@ -133,6 +134,8 @@ class ECWOScheme(BaseScheme):
 
         scores = []
         costs = []
+
+        logger.info('[ECWO] train_one_batch')
 
         # Process batch sequentially
         for i in range(len(questions)):
