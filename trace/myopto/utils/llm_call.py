@@ -1,26 +1,18 @@
-"""trace/myopto/utils/llm_call.py
-
-Small helpers for making LLM calls through myopto's router.
-
-Existing helpers:
-- llm_chat(messages, role=...)
-- llm_text(prompt, role=..., system_prompt=...)
-- llm_prep(role=...) -> callable
-
-Added helper:
-- llm_json(prompt, *, role, json_schema, call_tag, system_prompt=None, llm=None) -> dict
-"""
-
+# trace/myopto/utils/llm_call.py
+"""Minimal LLM call helpers - only llm_json is actively used."""
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from myopto.utils.llm_router import get_llm
 
 Message = Dict[str, str]
 
 
+# --------------------------------------------------
+# Internal Helpers
+# --------------------------------------------------
 def _ensure_messages(
     prompt: Union[str, Sequence[Message]],
     *,
@@ -74,30 +66,6 @@ def extract_text(resp: Any) -> str:
     return str(resp)
 
 
-def llm_chat(
-    messages: Sequence[Message],
-    role: str = "executor",
-    llm: Optional[Any] = None,
-    **kwargs,
-) -> Any:
-    model = llm or get_llm(role)
-    return model(messages=list(messages), **kwargs)
-
-
-def llm_text(
-    prompt: str,
-    role: str = "executor",
-    system_prompt: Optional[str] = None,
-    llm: Optional[Any] = None,
-    strip: bool = True,
-    **kwargs,
-) -> str:
-    msgs = _ensure_messages(prompt, system_prompt=system_prompt)
-    resp = llm_chat(msgs, role=role, llm=llm, **kwargs)
-    out = extract_text(resp)
-    return out.strip() if strip else out
-
-
 def _strip_code_fences(s: str) -> str:
     s2 = (s or "").strip()
     if not s2.startswith("```"):
@@ -130,6 +98,9 @@ def _try_parse_json(text: str) -> Any:
     return json.loads(cand)
 
 
+# --------------------------------------------------
+# Public API
+# --------------------------------------------------
 def llm_json(
     prompt: str,
     *,
@@ -161,7 +132,6 @@ def llm_json(
         try:
             return model(messages=list(messages), **call_kwargs)
         except TypeError as e:
-            # Some providers may not accept call_tag / response_format.
             msg = str(e)
             if "call_tag" in msg and "unexpected keyword" in msg:
                 call_kwargs.pop("call_tag", None)
@@ -207,25 +177,3 @@ def llm_json(
             continue
 
     raise RuntimeError(f"llm_json failed to produce valid JSON: {last_err}")
-
-
-def llm_prep(
-    role: str = "executor",
-    system_prompt: Optional[str] = None,
-    llm: Optional[Any] = None,
-    strip: bool = True,
-    **default_kwargs,
-) -> Callable[[str], str]:
-    frozen_llm = llm or get_llm(role)
-
-    def _call(prompt: str, system_prompt_override: Optional[str] = None, **kwargs) -> str:
-        sp = system_prompt_override if system_prompt_override is not None else system_prompt
-        merged = dict(default_kwargs)
-        merged.update(kwargs)
-        return llm_text(prompt, role=role, system_prompt=sp, llm=frozen_llm, strip=strip, **merged)
-
-    return _call
-
-
-# Alias (matches requested usage)
-_llm_prep_function = llm_prep
