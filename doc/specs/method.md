@@ -1,3 +1,5 @@
+# method
+
 Here’s the methodology as a clean **3-role architecture** (outer-loop meta-optimizer + deployable optimizer + executor), matching your “no-GT test-time, trace+verifier driven” setting.
 
 ## 1) Meta-Optimizer (Outer Loop, training-time only)

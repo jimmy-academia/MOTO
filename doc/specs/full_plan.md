@@ -1,3 +1,5 @@
+# full plan
+
 Here is the comprehensive summary of the **Clover Framework** as we have defined it. This specification unifies the **Generative Beam Search** (Inner Loop) with the **Textual Meta-Learning** (Outer Loop).
 
 ### Part 1: The Grand Architecture
