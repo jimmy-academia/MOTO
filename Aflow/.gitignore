@@ -1,0 +1,10 @@
+.DS_Store
+config/config2.yaml
+logs
+data/datasets
+optimized
+*/__pycache__
+*.pyc
+/workspace
+*.json
+schemes/AFlow/config/config2.yaml
