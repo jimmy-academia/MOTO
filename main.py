@@ -10,26 +10,24 @@ from utils.logs import logger
 from utils.count_data import get_safe_random_indices
 from utils import good_json_dump
 from myopto.utils.llm_router import set_role_models
-from myopto.utils.usage import configure_usage
-
-
 
 def set_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-s', '--scheme', type=str, default='ecwo')
-    # moto, optopy, optotext, (aflow)
+    parser.add_argument('-s', '--scheme', type=str, default='aflow')
+    # moto, optopy, optotext, aflow, veto
     
     supervised_sets = ['math', 'gsm8k', 'drop', 'hotpotqa', 'humaneval', 'mbpp']
     meta_sets = ['clovertoy']
-    parser.add_argument('-b', '--benchmark', type=str, choices=supervised_sets+meta_sets, help='Dataset name', default='math')
+
+    parser.add_argument('-b', '--benchmark', type=str, choices=supervised_sets+meta_sets, help='Dataset name', default='gsm8k')
     parser.add_argument('--data_dir', type=str, default='data', help='Data directory')
     
     # model
     parser.add_argument('-m', '--mopt_model', type=str, default='gpt-5-nano', help='Meta-Optimizer LLM')
-    parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-nano', help='Optimizer LLM')
-    parser.add_argument('-e', '--exe_model', type=str, default='gpt-5-nano', help='Executor LLM')
+    parser.add_argument('-o', '--opt_model', type=str, default='qwen2-0.5b', help='Optimizer LLM')
+    parser.add_argument('-e', '--exe_model', type=str, default='qwen2-0.5b', help='Executor LLM')
+    # trace/myopto/utils/usage.py MODEL_REGISTRY
     parser.add_argument('--batch_mode', type=str, default='sample', help='mode for making data batches.')
-    parser.add_argument("--slm_model", type=str, default="Qwen/Qwen2-0.5B-Instruct")
     # parser.add_argument("--use_mlx", action="store_true", help="Use MLX on Apple Silicon")
     # parser.add_argument("--device", type=str, default="mps", choices=["mps", "cuda", "cpu"])
     # Limits
@@ -117,7 +115,6 @@ def main():
         optimizer=args.opt_model,
         metaoptimizer=args.mopt_model,
     )
-    configure_usage(enabled=True)
     asyncio.run(run_main(args))
 
 if __name__ == '__main__':

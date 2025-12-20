@@ -5,18 +5,19 @@ Available optimization schemes for LLM workflow optimization.
 """
 
 from .base import BaseScheme
-from .beam import BeamInnerLoopEngine, BeamCandidate
-from .ecwo import ECWOScheme
-from .veto import VETOScheme
-
+# from .beam import BeamInnerLoopEngine, BeamCandidate
+# from .ecwo import ECWOScheme
+# from .veto import VETOScheme
+from .aflow import AFlowScheme
 
 # --------------------------------------------------
 # Scheme Registry
 # --------------------------------------------------
 
 SCHEME_REGISTRY = {
-    "ecwo": ECWOScheme,
-    "veto": VETOScheme,
+    # "ecwo": ECWOScheme,
+    # "veto": VETOScheme,
+    "alfow": AFlowScheme,
 }
 
 
@@ -48,11 +49,12 @@ def list_schemes() -> list:
 
 
 __all__ = [
-    "BaseScheme",
-    "BeamInnerLoopEngine",
-    "BeamCandidate",
+    # "BaseScheme",
+    # "BeamInnerLoopEngine",
+    # "BeamCandidate",
     "ECWOScheme",
     "VETOScheme",
+    "AFlowScheme",
     "SCHEME_REGISTRY",
     "get_scheme",
     "list_schemes",
