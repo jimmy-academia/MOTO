@@ -42,7 +42,7 @@ class OptoPrimeMulti(OptoPrime):
         ]
 
         try:
-            response = self.llm.create(
+            response = self.llm(
                 messages=messages,
                 response_format={"type": "json_object"},
                 max_tokens=max_tokens,

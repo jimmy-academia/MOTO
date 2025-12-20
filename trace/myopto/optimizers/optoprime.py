@@ -10,7 +10,8 @@ from myopto.trace.propagators import TraceGraph, GraphPropagator
 from myopto.trace.propagators.propagators import Propagator
 from myopto.optimizers.optimizer import Optimizer
 from myopto.optimizers.buffers import FIFOBuffer
-from myopto.utils.llm import AbstractModel, LLM
+from myopto.utils.llm_router import get_llm
+from typing import Callable
 
 from black import format_str, FileMode
 
@@ -250,7 +251,7 @@ class OptoPrime(Optimizer):
     def __init__(
         self,
         parameters: List[ParameterNode],
-        llm: AbstractModel = None,
+        llm: Callable = None,
         *args,
         propagator: Propagator = None,
         objective: Union[None, str] = None,
@@ -264,7 +265,7 @@ class OptoPrime(Optimizer):
     ):
         super().__init__(parameters, *args, propagator=propagator, **kwargs)
         self.ignore_extraction_error = ignore_extraction_error
-        self.llm = llm or LLM(role="optimizer")
+        self.llm = llm or get_llm(role="optimizer")
         self.objective = objective or self.default_objective
         self.example_problem = ProblemInstance.problem_template.format(
             instruction=self.default_objective,

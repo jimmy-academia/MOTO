@@ -5,7 +5,8 @@ from myopto.optimizers.optimizer import Optimizer
 from myopto.trace.nodes import ParameterNode, Node, MessageNode
 from myopto.trace.propagators import TraceGraph, GraphPropagator, Propagator
 from myopto.trace.utils import escape_json_nested_quotes, remove_non_ascii
-from myopto.utils.llm import LLM, AbstractModel
+from myopto.utils.llm_router import get_llm
+from typing import Callable
 
 from copy import copy
 import re
@@ -308,7 +309,7 @@ class TextGrad(Optimizer):
     def __init__(
         self,
         parameters: List[ParameterNode],
-        llm: AbstractModel = None,
+        llm: Callable = None,
         *args,
         propagator: Propagator = None,
         objective: Union[None, str] = None,
@@ -317,7 +318,7 @@ class TextGrad(Optimizer):
         **kwargs,
     ):
         super().__init__(parameters, *args, **kwargs)
-        self.llm = llm or LLM(role="optimizer")
+        self.llm = llm or get_llm(role="optimizer")
         self.print_limit = 100
         self.max_tokens = max_tokens
         self.new_variable_tags = ["<IMPROVED_VARIABLE>", "</IMPROVED_VARIABLE>"]
@@ -509,13 +510,10 @@ class TextGrad(Optimizer):
         ]
 
         try:
-            response = self.llm.create(
-                messages=messages,
-                max_tokens=self.max_tokens,
-            )
-        except Exception:
-            response = self.llm.create(messages=messages, max_tokens=self.max_tokens)
-        response = response.choices[0].message.content
+            response = self.llm(messages=messages, max_tokens=self.max_tokens)
+            response = response.choices[0].message.content
+        except Exception as e:
+            response = f"Warning -- Exception: {e}"
 
         if verbose:
             print("LLM response:\n", response)

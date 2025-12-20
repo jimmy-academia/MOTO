@@ -9,7 +9,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-from myopto.utils.llm import LLM
+from myopto.utils.llm_router import get_llm
 
 
 # -----------------------------
@@ -108,7 +108,7 @@ class StructureEditor:
         forbid_imports: bool = False,
         verbose: bool = False,
     ):
-        self.llm = llm or LLM(role="optimizer")
+        self.llm = llm or get_llm(role="optimizer")
         self.max_tokens = max_tokens
         self.require_call_tag = require_call_tag
         self.forbid_strip_trace_tags = forbid_strip_trace_tags

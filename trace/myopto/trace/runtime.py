@@ -233,9 +233,10 @@ def _default_backend_raw(system_prompt: Optional[str], user_prompt: str, llm: An
     Default backend mirrors the existing operator style that builds messages,
     but returns the *raw* provider response so tracer can read usage/model.
     """
-    from myopto.utils.llm import LLM
+    from myopto.utils.llm_router import get_llm
 
-    llm = llm or LLM(role="executor")
+    llm = llm or get_llm(role="executor")
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
