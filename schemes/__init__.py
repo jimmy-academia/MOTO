@@ -1,3 +1,4 @@
+# schemes/__init__.py
 """
 Schemes Registry
 
@@ -5,9 +6,9 @@ Available optimization schemes for LLM workflow optimization.
 """
 
 from .base import BaseScheme
-# from .beam import BeamInnerLoopEngine, BeamCandidate
+from .beam import BeamInnerLoopEngine, Candidate
 # from .ecwo import ECWOScheme
-# from .veto import VETOScheme
+from .veto import VETOScheme
 from .aflow import AFlowScheme
 
 # --------------------------------------------------
@@ -16,8 +17,8 @@ from .aflow import AFlowScheme
 
 SCHEME_REGISTRY = {
     # "ecwo": ECWOScheme,
-    # "veto": VETOScheme,
-    "alfow": AFlowScheme,
+    "veto": VETOScheme,
+    "aflow": AFlowScheme,  # Fixed typo: was "alfow"
 }
 
 
@@ -26,7 +27,7 @@ def get_scheme(name: str, args) -> BaseScheme:
     Get a scheme instance by name.
     
     Args:
-        name: Scheme name (ecwo, veto)
+        name: Scheme name (ecwo, veto, aflow)
         args: Configuration arguments
         
     Returns:
@@ -49,10 +50,10 @@ def list_schemes() -> list:
 
 
 __all__ = [
-    # "BaseScheme",
-    # "BeamInnerLoopEngine",
-    # "BeamCandidate",
-    "ECWOScheme",
+    "BaseScheme",
+    "BeamInnerLoopEngine",
+    "Candidate",
+    # "ECWOScheme",
     "VETOScheme",
     "AFlowScheme",
     "SCHEME_REGISTRY",

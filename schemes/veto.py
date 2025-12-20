@@ -108,7 +108,7 @@ class VETOScheme(BaseScheme):
         self.args = args
         
         # SLM Configuration - use short model name from -e flag
-        self.slm_model = getattr(args, "executor", "qwen2-0.5b")
+        self.slm_model = getattr(args, "exe_model", "qwen2-0.5b")
         self.device = getattr(args, "device", "mps")
         
         # Configure SLM for both roles
@@ -200,7 +200,7 @@ class VETOScheme(BaseScheme):
                 logger.warning(f"[VETO] Workflow execution failed: {e}")
                 result = f"Error: {str(e)}"
         
-        trace = tracer.get_trace()
+        trace = tracer.get_trace() if hasattr(tracer, 'get_trace') else {}
         return result, trace
 
     def get_feedback(
@@ -252,10 +252,11 @@ class VETOScheme(BaseScheme):
 
     def init_beam_engine(self):
         """Initialize the beam search engine for inner loop."""
+        # Fixed: removed max_iterations parameter, use iterations in run() instead
         self.beam_engine = BeamInnerLoopEngine(
-            beam_width=self.beam_width,
             editor=self.editor,
-            max_iterations=self.iterations,
+            beam_width=self.beam_width,
+            verbose=getattr(self.args, "verbose", False),
         )
 
     def generate_candidates(
@@ -498,6 +499,74 @@ class VETOScheme(BaseScheme):
             "total_cost": get_total_cost(),
             "history": self.history,
         }
+
+    # --------------------------------------------------
+    # BaseScheme Interface
+    # --------------------------------------------------
+
+    async def inference(self, input_text: str) -> Tuple[str, float]:
+        """
+        Inference function for evaluation.
+        
+        Args:
+            input_text: The user query
+            
+        Returns:
+            (prediction, cost_usd)
+        """
+        reset_usage()
+        
+        # Use default context
+        context = "Solve the following problem carefully."
+        
+        try:
+            with RuntimeTracer(domain="inference") as tr:
+                result = self.seed_fn(context, input_text)
+            
+            cost = float(get_total_cost())
+            pred = strip_trace_tags(str(result))
+            return pred, cost
+            
+        except Exception as e:
+            cost = float(get_total_cost())
+            logger.error(f"[VETO] inference: Error - {e}")
+            return f"Error: {e}", cost
+
+    def save_model(self, epoch: Optional[int] = None) -> None:
+        """Persist scheme state to self.scheme_file."""
+        logger.info(f"[VETO] save_model: Saving to {self.scheme_file}")
+        
+        self.scheme_file.parent.mkdir(parents=True, exist_ok=True)
+        code = (
+            "# VETO Scheme State\n"
+            f"SEED_WORKFLOW_CODE = {repr(self.seed_code)}\n"
+            f"FEEDBACK_WORKFLOW_CODE = {repr(self.feedback_code)}\n"
+            f"CURRENT_WORKFLOW_CODE = {repr(self.current_workflow_code)}\n"
+        )
+        self.scheme_file.write_text(code, encoding="utf-8")
+        logger.debug(f"[VETO] save_model: Wrote {len(code)} bytes")
+
+    def load(self, path: Path) -> bool:
+        """Load state from disk."""
+        logger.info(f"[VETO] load: Attempting to load from {path}")
+        
+        if not path.exists():
+            logger.warning(f"[VETO] load: File not found: {path}")
+            return False
+        try:
+            ns = {}
+            exec(path.read_text("utf-8"), ns, ns)
+            self.seed_code = ns.get("SEED_WORKFLOW_CODE", self.seed_code)
+            self.feedback_code = ns.get("FEEDBACK_WORKFLOW_CODE", self.feedback_code)
+            self.current_workflow_code = ns.get("CURRENT_WORKFLOW_CODE", self.current_workflow_code)
+            # Reload functions
+            self.seed_fn = self._load(self.seed_code, "seed_workflow")
+            self.feedback_fn = self._load(self.feedback_code, "feedback_workflow")
+            logger.info("[VETO] load: Successfully loaded scheme state")
+            return True
+        except Exception as e:
+            logger.error(f"[VETO] load: Failed to load - {e}")
+            return False
 
     # --------------------------------------------------
     # Utilities

@@ -21,9 +21,9 @@ from myopto.utils.usage import get_total_cost, reset_usage
 from utils.logs import logger
 
 
-# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
 # Dataset Configurations
-# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
 
 # Map main codebase benchmark names to AFlow dataset names
 BENCHMARK_TO_AFLOW_DATASET = {
@@ -63,9 +63,45 @@ DATASET_CONFIGS = {
 }
 
 
-# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
+# Usage Tracker (defined BEFORE LLMAdapter)
+# --------------------------------------------------
+
+class UsageTracker:
+    """Tracks token usage and costs for LLM calls."""
+    
+    def __init__(self):
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_cost = 0.0
+        self.call_count = 0
+    
+    def track(self, response: Any):
+        """Track usage from a response."""
+        self.call_count += 1
+        
+        # Try to extract usage info
+        if hasattr(response, "usage"):
+            usage = response.usage
+            if hasattr(usage, "prompt_tokens"):
+                self.total_input_tokens += usage.prompt_tokens
+            if hasattr(usage, "completion_tokens"):
+                self.total_output_tokens += usage.completion_tokens
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get usage summary."""
+        return {
+            "total_input_tokens": self.total_input_tokens,
+            "total_output_tokens": self.total_output_tokens,
+            "total_tokens": self.total_input_tokens + self.total_output_tokens,
+            "total_cost": get_total_cost(),
+            "call_count": self.call_count,
+        }
+
+
+# --------------------------------------------------
 # LLM Adapter (bridges llm_router to AFlow's async interface)
-# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
 
 class LLMAdapter:
     """
@@ -132,41 +168,9 @@ class LLMAdapter:
         return self._usage_tracker.get_summary()
 
 
-class UsageTracker:
-    """Tracks token usage and costs for LLM calls."""
-    
-    def __init__(self):
-        self.total_input_tokens = 0
-        self.total_output_tokens = 0
-        self.total_cost = 0.0
-        self.call_count = 0
-    
-    def track(self, response: Any):
-        """Track usage from a response."""
-        self.call_count += 1
-        
-        # Try to extract usage info
-        if hasattr(response, "usage"):
-            usage = response.usage
-            if hasattr(usage, "prompt_tokens"):
-                self.total_input_tokens += usage.prompt_tokens
-            if hasattr(usage, "completion_tokens"):
-                self.total_output_tokens += usage.completion_tokens
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Get usage summary."""
-        return {
-            "total_input_tokens": self.total_input_tokens,
-            "total_output_tokens": self.total_output_tokens,
-            "total_tokens": self.total_input_tokens + self.total_output_tokens,
-            "total_cost": get_total_cost(),
-            "call_count": self.call_count,
-        }
-
-
-# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
 # AFlow Scheme
-# ----------------------------------------------------------------------------------------------------
+# --------------------------------------------------
 
 class AFlowScheme(BaseScheme):
     """
@@ -353,73 +357,74 @@ class AFlowScheme(BaseScheme):
         Run inference using the best trained workflow.
         
         Args:
-            input_text: Problem/question to solve
+            input_text: The problem to solve
             
         Returns:
-            Tuple of (answer, cost)
+            (answer, cost_usd)
         """
         reset_usage()
         
-        if self._best_round is None:
-            self._best_round = self._find_best_round()
+        # Determine which round to use
+        round_num = self._best_round or 1
         
         try:
-            # Load the workflow for the best round
-            WorkflowClass = self._load_workflow_class(self._best_round)
+            # Load the workflow class
+            WorkflowClass = self._load_workflow_class(round_num)
             
-            # Create workflow instance with executor LLM
+            # Create workflow instance
+            from schemes.AFlow.scripts.async_llm import LLMsConfig
+            llm_config = LLMsConfig.default().get("executor")
+            
             workflow = WorkflowClass(
                 name=f"{self.dataset}_workflow",
-                llm_config=self.execute_llm,  # Pass our adapter
+                llm_config=llm_config,
                 dataset=self.dataset,
             )
             
             # Run inference
             answer, cost = await workflow(input_text)
             
-            return str(answer), float(cost)
+            return answer, cost
             
         except Exception as e:
             logger.error(f"[AFlow] Inference failed: {e}")
-            return f"Error: {e}", 0.0
+            # Fallback to simple LLM call
+            llm = get_llm(role="executor")
+            response = llm(f"Solve this problem:\n{input_text}")
+            return str(response), get_total_cost()
     
     def save_model(self, epoch: Optional[int] = None) -> None:
         """
-        Save AFlow state to disk.
+        Save AFlow state.
         
-        AFlow maintains its own workflow files in the optimized_path directory.
-        This method saves a reference to the best round for quick loading.
+        AFlow manages its own workflow files, so we just save metadata
+        about the best round and configuration.
         """
         logger.info(f"[AFlow] Saving model state to {self.scheme_file}")
         
         self.scheme_file.parent.mkdir(parents=True, exist_ok=True)
         
         state = {
+            "best_round": self._best_round,
             "dataset": self.dataset,
-            "question_type": self.question_type,
-            "operators": self.operators,
             "optimized_path": self.optimized_path,
-            "best_round": self._best_round or self._find_best_round(),
             "max_rounds": self.max_rounds,
         }
         
-        code = (
-            "# AFlow Scheme State\n"
-            f"AFLOW_STATE = {repr(state)}\n"
-        )
-        
+        code = f"# AFlow Scheme State\nAFLOW_STATE = {repr(state)}\n"
         self.scheme_file.write_text(code, encoding="utf-8")
         
         if epoch is not None:
             snap = self.scheme_file.parent / f"scheme_epoch_{epoch}.py"
             snap.write_text(code, encoding="utf-8")
-        
-        logger.debug(f"[AFlow] State saved: best_round={state['best_round']}")
     
     def load(self, path: Path) -> bool:
         """
         Load AFlow state from disk.
         
+        Args:
+            path: Path to state file
+            
         Returns:
             True if loaded successfully, False otherwise
         """

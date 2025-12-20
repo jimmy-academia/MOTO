@@ -20,8 +20,8 @@ from myopto.trace.runtime import RuntimeTracer, llm, msg, strip_trace_tags
 from myopto.optimizers.structure_editor import StructureEditor
 from myopto.optimizers import OptoPrimeLocal
 
-
 from utils.logs import logger
+
 
 @dataclass
 class Candidate:
@@ -52,6 +52,10 @@ class Candidate:
         return self.score < other.score
 
 
+# Alias for backward compatibility
+BeamCandidate = Candidate
+
+
 class BeamInnerLoopEngine:
     """
     Beam Search optimization engine for test-time workflow adaptation.
@@ -61,10 +65,17 @@ class BeamInnerLoopEngine:
     structure edits (code rewrites) and prompt edits (template optimization).
     """
     
-    def __init__(self, editor: StructureEditor, beam_width: int = 3, verbose: bool = False):
+    def __init__(
+        self, 
+        editor: StructureEditor, 
+        beam_width: int = 3, 
+        verbose: bool = False,
+        max_iterations: int = None  # Added for VETO compatibility (ignored, use iterations in run())
+    ):
         self.editor = editor
         self.beam_width = beam_width
         self.verbose = verbose
+        # max_iterations stored but not used here - iterations passed to run() instead
 
     async def run(
         self, 
@@ -87,7 +98,7 @@ class BeamInnerLoopEngine:
         Returns:
             (best_candidate, trajectory) - Best candidate found and optimization history
         """
-        logger.info('[ECWO] running beam search')
+        logger.info('[Beam] running beam search')
 
         # 1. Initialize: Load the seed function from code string
         initial_func = self.editor.load_function(
@@ -132,9 +143,9 @@ class BeamInnerLoopEngine:
 
         return (population[0] if population else None), trajectory
 
-    # -------------------------------------------------------------------------
+    # --------------------------------------------------
     # Core Mechanics
-    # -------------------------------------------------------------------------
+    # --------------------------------------------------
 
     async def _evaluate_population(
         self, 
@@ -176,13 +187,10 @@ class BeamInnerLoopEngine:
             x, y = batch[0]
             
             # 1. Execute the workflow inside RuntimeTracer
-            # RuntimeTracer captures llm() calls and creates trainable prompt templates
             with RuntimeTracer(domain="workflow", trainable_prompt_templates=True) as wf_tr:
-                # Execute the plain function (NOT async - plain Python function)
                 pred = candidate.fn(context, x)
             
             # 2. Capture Artifacts
-            # wf_tr.parameters() returns ParameterNodes for prompts created during this run
             params = wf_tr.parameters() 
             out_node = getattr(pred, "node", None) or wf_tr.output_node
             
@@ -192,7 +200,6 @@ class BeamInnerLoopEngine:
             # 3. Run Feedback function
             signal = {"trace": wf_tr.to_ir(), "ground_truth": y}
             with RuntimeTracer(domain="feedback", trainable_prompt_templates=False) as fb_tr:
-                # Execute feedback function (NOT async)
                 fb_result = feed_fn(pred_str, signal)
             
             return {
@@ -218,81 +225,66 @@ class BeamInnerLoopEngine:
         """
         Expand surviving candidates into next generation.
         
-        For each survivor:
-        - Keep an elite copy (unchanged)
-        - Try structure mutation (code rewrite)
-        - Try prompt mutation (template optimization)
+        Creates children through:
+        1. Structure edits (code rewrites via StructureEditor)
+        2. Prompt edits (template optimization via OptoPrime)
         """
         next_gen = []
         
         for parent in survivors:
-            # Elitism: Keep parent as-is
-            next_gen.append(Candidate(
-                fn=parent.fn,
-                code=parent.code,
-                id=self._id(),
-                parent_id=parent.id, 
-                score=parent.score, 
-                mutation_type="elite"
-            ))
-
-            # Child A: Structure Edit (rewrite code)
-            child_struct = await self._mutate_structure(parent)
-            if child_struct:
-                next_gen.append(child_struct)
-
-            # Child B: Prompt Edit (optimize templates)
-            child_prompt = await self._mutate_prompts(parent)
-            if child_prompt:
-                next_gen.append(child_prompt)
-                
+            # Keep parent
+            next_gen.append(parent)
+            
+            # Try structure edit
+            struct_child = await self._structure_edit(parent)
+            if struct_child:
+                next_gen.append(struct_child)
+            
+            # Try prompt edit
+            prompt_child = await self._prompt_edit(parent)
+            if prompt_child:
+                next_gen.append(prompt_child)
+        
         return next_gen
 
-    # -------------------------------------------------------------------------
-    # Mutators
-    # -------------------------------------------------------------------------
-
-    async def _mutate_structure(self, parent: Candidate) -> Optional[Candidate]:
+    async def _structure_edit(self, parent: Candidate) -> Optional[Candidate]:
         """
-        Create a child by rewriting the parent's code structure.
+        Create a child candidate via structure edit.
         
-        Uses StructureEditor to generate improved code based on feedback.
+        Uses the StructureEditor to rewrite the workflow code based on feedback.
         """
-        if not parent.trace_ir:
+        if not parent.feedback:
             return None
 
-        # 1. Rewrite the code
-        res = self.editor.rewrite_function(
-            func_or_code=parent.code,
-            ir=parent.trace_ir,
-            feedback=f"FIX LOGIC: {parent.feedback}",
-        )
-        
-        if not res.ok:
-            return None
-
-        # 2. Load the new function from rewritten code
         try:
+            new_code = self.editor.edit(
+                parent.code,
+                feedback=str(parent.feedback),
+            )
+            
+            if not new_code or new_code == parent.code:
+                return None
+            
             new_fn = self.editor.load_function(
-                res.code, 
+                new_code, 
                 extra_globals={"llm": llm, "msg": msg}
+            )
+            
+            return Candidate(
+                fn=new_fn,
+                code=new_code,
+                id=self._id(),
+                parent_id=parent.id,
+                mutation_type="structure"
             )
         except Exception as e:
             if self.verbose:
-                print(f"Failed to load mutated code: {e}")
+                print(f"Structure edit failed: {e}")
             return None
 
-        return Candidate(
-            fn=new_fn,
-            code=res.code,
-            id=self._id(),
-            parent_id=parent.id, 
-            mutation_type="structure"
-        )
-
-    async def _mutate_prompts(self, parent: Candidate) -> Optional[Candidate]:
+    async def _prompt_edit(self, parent: Candidate) -> Optional[Candidate]:
         """
-        Create a child by optimizing the parent's prompt templates.
+        Create a child candidate via prompt optimization.
         
         Uses OptoPrimeLocal to update prompt templates, then patches the
         source code with the new prompts and reloads the function.
@@ -316,10 +308,8 @@ class BeamInnerLoopEngine:
         changed = False
         
         for p in parent.live_parameters:
-            # Check if prompt was actually updated
             initial = getattr(p, 'initial_value', None) or getattr(p, '_initial_data', None)
             if initial and p.data != initial:
-                # Replace old prompt with new in the code
                 if initial in new_code:
                     new_code = new_code.replace(initial, p.data)
                     changed = True
@@ -346,9 +336,9 @@ class BeamInnerLoopEngine:
             mutation_type="prompt"
         )
 
-    # -------------------------------------------------------------------------
+    # --------------------------------------------------
     # Utilities
-    # -------------------------------------------------------------------------
+    # --------------------------------------------------
 
     def _id(self) -> str:
         """Generate a short unique ID."""
