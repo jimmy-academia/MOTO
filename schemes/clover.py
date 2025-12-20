@@ -5,14 +5,12 @@ import json
 from myopto.optimizers import OptoPrimeLocal
 from myopto.optimizers.structure_editor import StructureEditor
 from myopto.trace.runtime import llm, msg
-from myopto.utils.llm_call import llm_json
-from myopto.utils.llm_router import get_llm
+from myopto.utils.llm_router import llm_json, get_llm  
 from myopto.utils.usage import get_total_cost, reset_usage
 
 from .base import BaseScheme
 from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
 # from .ecwo import InnerLoopEngine
-
 
 class CloverScheme(BaseScheme):
     def __init__(self, args):

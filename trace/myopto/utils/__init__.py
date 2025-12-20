@@ -18,30 +18,30 @@ Quick Start:
     llm = get_llm("executor")
     response = llm(messages=[{"role": "user", "content": "Hello"}])
     
-    # Or use JSON output
+    # Or use JSON output (OpenAI uses native schema, SLMs use prompt injection)
     result = llm_json(
         "Extract name and age from: John is 30",
         json_schema={"name": "...", "schema": {...}}
     )
 
 Backends:
-    - LiteLLM: Cloud providers (OpenAI, Anthropic, etc.)
-    - CustomLLM: OpenAI-compatible endpoints
-    - LocalSLM: Local models via transformers/MLX
+    - LiteLLM: Cloud providers (OpenAI, Anthropic, etc.) - supports json_schema
+    - CustomLLM: OpenAI-compatible endpoints - supports json_schema
+    - LocalSLM: Local models via transformers/MLX - JSON via prompt injection
     - AutoGen: AutoGen wrapper
 """
 from myopto.utils.llm_router import (
+    # Router API
     set_role_models,
     set_role_config,
     clear_role_config,
     get_role_config,
     get_llm,
-)
-
-from myopto.utils.llm_call import (
+    # LLM call helpers (moved from llm_call.py)
     llm_json,
     llm_text,
     extract_text,
+    try_parse_json,
 )
 
 from myopto.utils.usage import (
@@ -81,6 +81,7 @@ __all__ = [
     "llm_json",
     "llm_text",
     "extract_text",
+    "try_parse_json",
     # Usage tracking
     "configure_usage",
     "reset_usage",

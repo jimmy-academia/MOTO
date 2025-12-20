@@ -114,7 +114,7 @@ set_role_config(
 
 ## JSON Schema Output
 
-Use `llm_json()` for structured outputs with automatic schema enforcement:
+Use `llm_json()` for structured outputs:
 
 ```python
 from myopto.utils import llm_json
@@ -127,44 +127,27 @@ result = llm_json(
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "age": {"type": "integer"},
+                "age": {"type": "integer"}
             },
-            "required": ["name", "age"],
+            "required": ["name", "age"]
         },
-        "strict": True,
-    },
+        "strict": True
+    }
 )
 # result = {"name": "John", "age": 30}
 ```
 
-This uses native JSON schema support when available (OpenAI, LiteLLM), falling back to prompt-based extraction for other backends.
+### Backend-Specific Behavior
 
-## Usage Tracking
+| Backend | JSON Schema Handling |
+|---------|---------------------|
+| **LiteLLM** | Native `response_format` with `json_schema` |
+| **CustomLLM** | Native `response_format` with `json_schema` |
+| **LocalSLM** | JSON instruction injected into prompt (no `response_format`) |
 
-Track token usage and costs across your application:
-
-```python
-from myopto.utils import configure_usage, reset_usage, get_usage_summary
-
-# Enable tracking
-configure_usage(enabled=True)
-
-# Reset at start of task
-reset_usage()
-
-# ... run your LLM calls ...
-
-# Get summary
-summary = get_usage_summary()
-print(f"Total cost: ${summary['total_cost_usd']:.4f}")
-print(f"Tokens by role: {summary['tokens_by_role']}")
-
-# Or print formatted
-from myopto.utils import print_usage_summary
-print_usage_summary()
-```
-
-Note: Local SLM costs are tracked as $0.00.
+This design ensures:
+- OpenAI/ChatGPT models use their native structured output capability
+- SLMs don't receive unsupported `response_format` parameters
 
 ## Environment Variables
 
@@ -223,6 +206,7 @@ set_role_models(
 - `llm_json(prompt, json_schema, role="executor", ...)` - Get JSON output
 - `llm_text(prompt, role="executor", ...)` - Get text output
 - `extract_text(response)` - Extract text from any response format
+- `try_parse_json(text)` - Parse JSON from text with fence stripping
 
 ### Usage Tracking
 
