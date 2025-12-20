@@ -147,19 +147,71 @@ class Optimizer:
             return llm
         return create_llm_instance(llm, role=role)
     
+# schemes/AFlow/scripts/optimizer.py
+
     def optimize(self, mode: OptimizerType = "Graph"):
         """
         Main optimization entry point.
+        Handles both sync and async contexts.
         
         Args:
             mode: "Graph" for workflow optimization, "Test" for evaluation
         """
+        try:
+            # Check if we're already in an async context
+            loop = asyncio.get_running_loop()
+            # We're in an async context - return coroutine for caller to await
+            return self._optimize_async(mode)
+        except RuntimeError:
+            # No running loop - we can create one
+            return self._optimize_sync(mode)
+    
+    async def _optimize_async(self, mode: OptimizerType):
+        """Async version of optimize for use within async contexts."""
         if mode == "Test":
-            test_n = 1
-            for i in range(test_n):
+            for _ in range(1):
+                await self.test()
+            return None
+
+        for opt_round in range(self.max_rounds):
+            retry_count = 0
+            max_retries = 3
+            score = None
+
+            while retry_count < max_retries:
+                try:
+                    score = await self._optimize_graph()
+                    break
+                except Exception as e:
+                    retry_count += 1
+                    logger.warning(f"Error occurred: {e}. Retrying... ({retry_count}/{max_retries})")
+                    if retry_count == max_retries:
+                        logger.error("Max retries reached. Moving to next round.")
+                        score = None
+                    await asyncio.sleep(5 * retry_count)
+
+            self.round += 1
+            logger.info(f"Score for round {self.round}: {score}")
+
+            converged, convergence_round, final_round = self.convergence_utils.check_convergence(top_k=3)
+
+            if converged and self.check_convergence:
+                logger.info(
+                    f"Convergence detected at round {convergence_round}, final round: {final_round}"
+                )
+                self.convergence_utils.print_results()
+                break
+
+            await asyncio.sleep(2)
+    
+    def _optimize_sync(self, mode: OptimizerType):
+        """Sync version of optimize when no event loop is running."""
+        if mode == "Test":
+            for _ in range(1):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                score = loop.run_until_complete(self.test())
+                loop.run_until_complete(self.test())
+                loop.close()
             return None
 
         for opt_round in range(self.max_rounds):
@@ -168,6 +220,7 @@ class Optimizer:
 
             retry_count = 0
             max_retries = 3
+            score = None
 
             while retry_count < max_retries:
                 try:
@@ -184,9 +237,11 @@ class Optimizer:
                     time.sleep(wait_time)
 
                 if retry_count < max_retries:
+                    loop.close()
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
 
+            loop.close()
             self.round += 1
             logger.info(f"Score for round {self.round}: {score}")
 

@@ -273,12 +273,7 @@ class AFlowScheme(BaseScheme):
         test_indices: Optional[Any] = None,
         test_freq: int = 1,
     ) -> None:
-        """
-        Run AFlow optimization loop.
-        
-        AFlow has its own optimization paradigm using MCTS over workflow graphs.
-        This method wraps AFlow's optimize() to fit the BaseScheme interface.
-        """
+        """Run AFlow optimization loop."""
         logger.info(f"[AFlow] Starting training: {self.max_rounds} rounds")
         reset_usage()
         
@@ -289,7 +284,10 @@ class AFlowScheme(BaseScheme):
             
             # Run AFlow's graph optimization
             # Note: AFlow manages its own data loading via its Evaluator
-            optimizer.optimize(mode="Graph")
+            result = optimizer.optimize(mode="Graph")
+            # If optimize returns a coroutine (we're in async context), await it
+            if asyncio.iscoroutine(result):
+                await result
             
             # After optimization, find the best round
             self._best_round = self._find_best_round()
