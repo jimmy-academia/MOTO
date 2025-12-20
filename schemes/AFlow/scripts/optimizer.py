@@ -21,7 +21,7 @@ try:
     from scripts.optimizer_utils.graph_utils import GraphUtils
     from scripts.async_llm import AsyncLLM, create_llm_instance
     from scripts.formatter import XmlFormatter, FormatError
-    from scripts.logs import logger
+    from utils.logs import logger
 except ImportError:
     # Running from schemes/AFlow context
     from .evaluator import DatasetType

@@ -13,7 +13,7 @@ from scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeForm
 from workspace.MBPP.workflows.template.operator_an import *
 from workspace.MBPP.workflows.template.op_prompt import *
 from scripts.async_llm import AsyncLLM
-from scripts.logs import logger
+from utils.logs import logger
 import asyncio
 
 from scripts.utils.code import extract_test_cases_from_jsonl, test_case_2_test_function

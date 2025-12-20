@@ -11,7 +11,7 @@ from scripts.prompts.optimize_prompt import (
     WORKFLOW_OPTIMIZE_PROMPT,
     WORKFLOW_TEMPLATE,
 )
-from scripts.logs import logger
+from utils.logs import logger
 
 
 class GraphUtils:

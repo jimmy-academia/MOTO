@@ -6,7 +6,7 @@ import random
 import numpy as np
 import pandas as pd
 
-from scripts.logs import logger
+from utils.logs import logger
 from scripts.utils.common import read_json_file, write_json_file
 
 

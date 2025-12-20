@@ -11,7 +11,7 @@ from typing import Optional, Tuple
 
 from scripts.evaluator import DatasetType
 from scripts.optimizer_utils.data_utils import DataUtils
-from scripts.logs import logger
+from utils.logs import logger
 from scripts.async_llm import LLMsConfig
 
 

@@ -8,7 +8,7 @@ import os
 
 import numpy as np
 
-from scripts.logs import logger
+from utils.logs import logger
 
 
 class ConvergenceUtils:

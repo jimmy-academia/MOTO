@@ -2,7 +2,7 @@ import json
 import os
 from collections import defaultdict
 
-from scripts.logs import logger
+from utils.logs import logger
 from scripts.utils.common import read_json_file, write_json_file
 
 class ExperienceUtils:

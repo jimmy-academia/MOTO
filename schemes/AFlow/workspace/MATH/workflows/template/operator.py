@@ -9,7 +9,7 @@ from scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeForm
 from workspace.MATH.workflows.template.operator_an import *
 from workspace.MATH.workflows.template.op_prompt import *
 from scripts.async_llm import AsyncLLM
-from scripts.logs import logger
+from utils.logs import logger
 import asyncio
 
 

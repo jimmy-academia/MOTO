@@ -14,7 +14,7 @@ from typing import Dict, List, Tuple, Optional
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from scripts.async_llm import AsyncLLM
-from scripts.logs import logger
+from utils.logs import logger
 from scripts.formatter import BaseFormatter, FormatError, XmlFormatter, TextFormatter, CodeFormatter
 from scripts.operator_an import (
     AnswerGenerateOp,
