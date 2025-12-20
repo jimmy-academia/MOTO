@@ -1,6 +1,8 @@
-# Self-scripting Activates Automatic Prompt Programming in Large Language Models
+# Work in progress
 
 ## Quick Start
+
+`uv pip install -r requirements.txt`
 
 ## Details
 
