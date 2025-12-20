@@ -5,12 +5,12 @@ import json
 from myopto.optimizers import OptoPrimeLocal
 from myopto.optimizers.structure_editor import StructureEditor
 from myopto.trace.runtime import llm, msg
-from myopto.utils.llm_router import llm_json, get_llm  
+from myopto.utils.llm_router import get_llm, extract_text, try_parse_json
 from myopto.utils.usage import get_total_cost, reset_usage
 
 from .base import BaseScheme
 from prompt.clover import META_PROMPT, SEED_WORKFLOW_CODE, FEEDBACK_WORKFLOW_CODE
-# from .ecwo import InnerLoopEngine
+
 
 class CloverScheme(BaseScheme):
     def __init__(self, args):
@@ -48,102 +48,50 @@ class CloverScheme(BaseScheme):
         passed_count = 0
 
         for ctx, x, ans in zip(contexts, xs, answers):
-            record = self.inner_loop(ctx, x)
-            pred = record.get("pred")
-
-            score = 0.0
+            # Run seed workflow
             try:
-                score, _extra = calculate_score(ans, pred)
-            except TypeError:
-                score, _extra = calculate_score(pred, ans)
+                result = self.seed_workflow_fn(ctx, x)
+            except Exception as e:
+                result = f"[ERROR] {e}"
 
-            passed = bool(score == 1 or score == 1.0)
-            if passed:
-                passed_count += 1
+            score, feedback = calculate_score(result, ans)
+            passed_count += 1 if score >= 1.0 else 0
 
-            record["score"] = float(score)
-            record["passed"] = passed
-            record["context"] = ctx
-            record["input"] = x
-            obs.append(record)
+            obs.append({
+                "context": ctx[:200] if ctx else "",
+                "question": x[:200] if x else "",
+                "answer": ans[:200] if isinstance(ans, str) else str(ans)[:200],
+                "result": str(result)[:200],
+                "score": score,
+                "feedback": feedback[:200] if feedback else "",
+            })
 
-        batch_size = len(answers)
-        all_passed = passed_count == batch_size
+        # Run outer update
+        updated = self._outer_update(obs)
 
-        updated = False
-        if not all_passed:
-            failed_obs = [o for o in obs if not o.get("passed")]
-            updated = self.outer_loop(failed_obs or obs)
-
-        if updated:
-            self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
-
+        cost = get_total_cost()
         return {
-            "cost_usd": float(get_total_cost()),
             "passed": passed_count,
-            "batch_size": batch_size,
-            "all_passed": all_passed,
-            "outer_updated": updated,
-            "observations": obs,
+            "total": len(batch[0]),
+            "cost": cost,
+            "updated": updated,
         }
 
-    def _load(self, code, fn_name):
-        return self.editor.load_function(code, fn_name, extra_globals={"llm": llm, "msg": msg})
+    def _load(self, code: str, fn_name: str):
+        """Load function from code string."""
+        ns = {}
+        try:
+            exec(code, ns)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load {fn_name}: {e}")
+        if fn_name not in ns:
+            raise RuntimeError(f"Function {fn_name} not found in code")
+        return ns[fn_name]
 
-    def inner_loop(self, context, x):
-        wf_code = self.seed_workflow_code
-        wf_fn = self.seed_workflow_fn
-
-        engine = InnerLoopEngine(
-            editor=self.editor,
-            feedback_fn=self.feedback_workflow_fn,
-            make_opt=self._make_prompt_optimizer,
-            verbose=self._arg("verbose", False),
-        )
-
-        sample_tag = self._sha12(f"{context}\n{x}")
-        result = engine.run(
-            wf_code,
-            wf_fn,
-            context,
-            x,
-            iterations=self._arg("inner_loop_iters", 3),
-            structure_budget=self._arg("structure_budget", 1),
-            structure_late_trigger_only=self._arg("structure_late_trigger_only", True),
-            sample_tag=sample_tag,
-        )
-
-        self.seed_workflow_code = result.get("wf_code", wf_code)
-        self.seed_workflow_fn = result.get("wf_fn", wf_fn)
-
-        return {
-            "pred": result.get("pred"),
-            "iterations": result.get("iterations"),
-            "sample_cost_usd": float(result.get("sample_cost_usd", 0.0)),
-            "trajectory": result.get("trajectory", []),
-        }
-
-    def _sha12(self, s):
-        return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
-
-    def _make_prompt_optimizer(self, parameters):
-        tried = [
-            ((parameters,), {"max_tokens": self._opt_max_tokens, "log": False, "llm": get_llm(role="optimizer")}),
-            ((parameters,), {"max_tokens": self._opt_max_tokens, "log": False}),
-            ((parameters,), {"max_tokens": self._opt_max_tokens}),
-            ((parameters,), {}),
-        ]
-        last_err = None
-        for args, kwargs in tried:
-            try:
-                return OptoPrimeLocal(*args, **kwargs)
-            except TypeError as e:
-                last_err = e
-                continue
-        raise last_err if last_err is not None else TypeError("Failed to construct OptoPrimeLocal(parameters, ...)")
-
-    def outer_loop(self, observations):
-        prompt = f"""You are a meta-optimizer improving a Python workflow function.
+    def _outer_update(self, observations: list) -> bool:
+        """Meta-optimizer step: decide whether to update seed workflow."""
+        prompt = f"""
+You are a meta-optimizer for workflow code improvement.
 
 Current seed_workflow_code (seed_workflow):
 {self.seed_workflow_code}
@@ -175,13 +123,17 @@ Constraints:
             "strict": True,
         }
 
+        # --------------------------------------------------
+        # Use get_llm + direct call with response_format
+        # --------------------------------------------------
         try:
-            obj = llm_json(prompt, role="metaoptimizer", json_schema=schema, call_tag="clover_outer")
-        except TypeError:
-            try:
-                obj = llm_json(prompt, role="metaoptimizer", schema=schema, call_tag="clover_outer")
-            except Exception:
-                return False
+            llm = get_llm(role="metaoptimizer")
+            response = llm(
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_schema", "json_schema": schema},
+            )
+            text = extract_text(response)
+            obj = try_parse_json(text)
         except Exception:
             return False
 
@@ -221,28 +173,17 @@ Constraints:
 
         ns = {}
         try:
-            txt = path.read_text(encoding="utf-8")
-            exec(compile(txt, str(path), "exec"), ns, ns)
+            exec(path.read_text(encoding="utf-8"), ns)
         except Exception:
             return False
 
-        self.meta_prompt = ns.get("META_PROMPT", self.meta_prompt)
-        self.seed_workflow_code = ns.get("SEED_WORKFLOW_CODE", self.seed_workflow_code)
-        self.feedback_workflow_code = ns.get("FEEDBACK_WORKFLOW_CODE", self.feedback_workflow_code)
+        if "META_PROMPT" in ns:
+            self.meta_prompt = ns["META_PROMPT"]
+        if "SEED_WORKFLOW_CODE" in ns:
+            self.seed_workflow_code = ns["SEED_WORKFLOW_CODE"]
+            self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
+        if "FEEDBACK_WORKFLOW_CODE" in ns:
+            self.feedback_workflow_code = ns["FEEDBACK_WORKFLOW_CODE"]
+            self.feedback_workflow_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
 
-        self.seed_workflow_fn = self._load(self.seed_workflow_code, "seed_workflow")
-        self.feedback_workflow_fn = self._load(self.feedback_workflow_code, "feedback_workflow")
         return True
-
-    async def inference_with_meta(self, context, x):
-        reset_usage()
-        record = self.inner_loop(context, x)
-        pred = record.get("pred", "")
-        cost_usd = float(get_total_cost())
-        meta = dict(record)
-        meta["cost_usd"] = cost_usd
-        return str(pred), cost_usd, meta
-
-    async def inference(self, input_text):
-        pred, cost_usd, _meta = await self.inference_with_meta("", input_text)
-        return pred, cost_usd

@@ -5,10 +5,6 @@ LLM Router - Centralized model routing by role.
 Provides a clean API for configuring different models for different roles
 (executor, optimizer, metaoptimizer) without environment variables.
 
-Includes structured output (JSON) support:
-- OpenAI/LiteLLM: Uses native json_schema response_format
-- LocalSLM: Injects JSON instruction into prompt (no response_format)
-
 Usage:
     from myopto.utils.llm_router import set_role_models, get_llm
     
@@ -199,50 +195,26 @@ def set_role_models(
     Simple model configuration by role.
     
     Args:
-        executor: Model name for executor role
-        optimizer: Model name for optimizer role
-        metaoptimizer: Model name for metaoptimizer role
-        key: Optional API key
-        backend: Backend to use (LiteLLM, CustomLLM, AutoGen, LocalSLM)
+        executor: Model for executor role
+        optimizer: Model for optimizer role
+        metaoptimizer: Model for metaoptimizer role
+        key: API key (for CustomLLM)
+        backend: Backend to use (LiteLLM, CustomLLM, LocalSLM, AutoGen)
     
     Example:
-        # Cloud models
-        set_role_models(executor="gpt-4o-mini", optimizer="gpt-4o")
-        
-        # Local SLMs
         set_role_models(
-            executor="Qwen/Qwen2-0.5B-Instruct",
-            optimizer="Qwen/Qwen2-0.5B-Instruct",
-            backend="LocalSLM"
+            executor="gpt-4o-mini",
+            optimizer="gpt-4o",
+            metaoptimizer="gpt-4o",
         )
     """
-    for role, model in (
-        ("executor", executor),
-        ("optimizer", optimizer),
-        ("metaoptimizer", metaoptimizer),
-    ):
-        if model is None:
-            continue
-        r = _norm_role(role)
-        with _ROLE_CFG_LOCK:
-            prev = _ROLE_CFG.get(r)
-            if prev is not None and prev.model is not None and prev.model != model:
-                _warn_pause_or_raise(
-                    f"[llm_router] WARNING: role={r!r} model override: {prev.model!r} -> {model!r}\n"
-                    "This likely means you are re-calling set_role_models with different args.\n"
-                )
-            _ROLE_CFG[r] = RoleLLMConfig(
-                role=r,
-                backend=backend if backend is not None else (prev.backend if prev else "LiteLLM"),
+    for role_name, model in [("executor", executor), ("optimizer", optimizer), ("metaoptimizer", metaoptimizer)]:
+        if model is not None:
+            set_role_config(
+                role_name,
                 model=model,
-                api_key=key if key is not None else (prev.api_key if prev else None),
-                base_url=prev.base_url if prev else None,
-                reset_freq=prev.reset_freq if prev else None,
-                cache=prev.cache if prev else True,
-                use_mlx=prev.use_mlx if prev else False,
-                device=prev.device if prev else None,
-                max_new_tokens=prev.max_new_tokens if prev else 150,
-                torch_dtype=prev.torch_dtype if prev else "float16",
+                api_key=key,
+                backend=backend,
             )
 
 
@@ -255,14 +227,13 @@ def set_role_config(
     api_key: Optional[str] = None,
     reset_freq: Optional[int] = None,
     cache: Optional[bool] = None,
-    # LocalSLM options
     use_mlx: Optional[bool] = None,
     device: Optional[str] = None,
     max_new_tokens: Optional[int] = None,
     torch_dtype: Optional[str] = None,
 ) -> None:
     """
-    Fine-grained configuration for a specific role.
+    Fine-grained configuration for a role.
     
     Args:
         role: Role name (executor, optimizer, metaoptimizer)
@@ -387,75 +358,74 @@ class LLMRouter:
                 "Call set_role_models(...) or set_role_config(...) first."
             )
 
+        # Build cache key
         cache_key = (
-            cfg.role, cfg.backend, cfg.model, cfg.base_url,
-            cfg.api_key, cfg.reset_freq, cfg.cache,
-            cfg.use_mlx, cfg.device, cfg.max_new_tokens, cfg.torch_dtype,
+            cfg.role,
+            cfg.backend,
+            cfg.model,
+            cfg.base_url,
+            cfg.api_key,
+            cfg.use_mlx,
+            cfg.device,
+            cfg.max_new_tokens,
+            cfg.torch_dtype,
         )
 
-        if self.enable_cache:
+        if self.enable_cache and cfg.cache:
             with self._lock:
-                inst = self._cache.get(cache_key)
-                if inst is not None:
-                    return inst
+                if cache_key in self._cache:
+                    return self._cache[cache_key]
 
-        # Create instance based on backend
-        if cfg.backend == "LiteLLM":
-            inst = LiteLLM(
-                model=cfg.model,
-                reset_freq=cfg.reset_freq,
-                cache=cfg.cache,
-                role=cfg.role,
-            )
-        elif cfg.backend == "CustomLLM":
-            inst = CustomLLM(
-                model=cfg.model,
-                reset_freq=cfg.reset_freq,
-                cache=cfg.cache,
-                role=cfg.role,
-                base_url=cfg.base_url,
-                api_key=cfg.api_key,
-            )
-        elif cfg.backend == "AutoGen":
-            inst = AutoGenLLM(
-                model=cfg.model,
-                reset_freq=cfg.reset_freq,
-                role=cfg.role,
-            )
-        elif cfg.backend == "LocalSLM":
+        # Create LLM instance
+        llm = self._create_llm(cfg)
+
+        if self.enable_cache and cfg.cache:
+            with self._lock:
+                self._cache[cache_key] = llm
+
+        return llm
+
+    def _create_llm(self, cfg: RoleLLMConfig) -> Any:
+        """Create LLM instance based on config."""
+        backend = cfg.backend.lower()
+
+        if backend == "localslm":
             _lazy_import_local_slm()
             if LocalSLM is None:
                 raise ImportError(
-                    "LocalSLM backend requires transformers or mlx-lm.\n"
-                    "Install with: pip install torch transformers\n"
-                    "Or for MLX: pip install mlx mlx-lm"
+                    "LocalSLM requires transformers or mlx. "
+                    "Install with: pip install torch transformers accelerate"
                 )
-            inst = LocalSLM(
-                model=cfg.model,
-                reset_freq=cfg.reset_freq,
-                role=cfg.role,
+            return LocalSLM(
+                model_name=cfg.model,
                 use_mlx=cfg.use_mlx,
                 device=cfg.device,
                 max_new_tokens=cfg.max_new_tokens,
                 torch_dtype=cfg.torch_dtype,
             )
-        else:
-            raise ValueError(f"[llm_router] Unknown backend: {cfg.backend!r}")
 
-        # Set role on instance
-        try:
-            inst.role = cfg.role
-        except Exception:
-            pass
+        if backend == "customllm":
+            return CustomLLM(
+                model=cfg.model,
+                base_url=cfg.base_url,
+                api_key=cfg.api_key,
+            )
 
-        if self.enable_cache:
-            with self._lock:
-                self._cache[cache_key] = inst
+        if backend == "autogen":
+            return AutoGenLLM(
+                model=cfg.model,
+                api_key=cfg.api_key,
+            )
 
-        return inst
+        # Default: LiteLLM
+        return LiteLLM(
+            model=cfg.model,
+            api_key=cfg.api_key,
+            role=cfg.role,
+        )
 
     def clear_cache(self) -> None:
-        """Clear all cached LLM instances."""
+        """Clear the LLM instance cache."""
         with self._lock:
             self._cache.clear()
 
@@ -487,7 +457,7 @@ def get_llm(role: str = "executor", **kwargs: Any) -> Any:
 
 
 # --------------------------------------------------
-# High-Level JSON/Text Helpers
+# High-Level Text Helper
 # --------------------------------------------------
 Message = Dict[str, str]
 
@@ -509,131 +479,6 @@ def _ensure_messages(
     if system_prompt and (not msgs or msgs[0].get("role") != "system"):
         msgs.insert(0, {"role": "system", "content": system_prompt})
     return msgs
-
-
-def _is_slm_backend(role: str) -> bool:
-    """Check if the role is configured to use LocalSLM backend."""
-    cfg = get_role_config(role)
-    if cfg is not None:
-        return cfg.backend == "LocalSLM"
-    return False
-
-
-def llm_json(
-    prompt: str,
-    *,
-    role: str = "executor",
-    system_prompt: Optional[str] = None,
-    llm: Optional[Any] = None,
-    json_schema: Dict[str, Any],
-    call_tag: Optional[str] = None,
-    **kwargs,
-) -> Dict[str, Any]:
-    """
-    Call an LLM and return a parsed JSON dict.
-    
-    For OpenAI/LiteLLM: Uses native json_schema response_format.
-    For LocalSLM: Injects JSON instruction into prompt (no response_format).
-    
-    Args:
-        prompt: User prompt text
-        role: LLM role for routing (executor, optimizer, metaoptimizer)
-        system_prompt: Optional system prompt
-        llm: Optional LLM instance (uses get_llm(role) if not provided)
-        json_schema: JSON schema dict. Can be:
-            - {"name": "...", "schema": {...}, "strict": True}  (OpenAI format)
-            - {"type": "object", "properties": {...}}  (raw schema)
-        call_tag: Optional tag for tracing
-        **kwargs: Additional args passed to LLM
-    
-    Returns:
-        Parsed JSON dict
-    
-    Raises:
-        ValueError: If json_schema is invalid
-        RuntimeError: If parsing fails
-    
-    Example:
-        result = llm_json(
-            "Extract the name and age from: John is 30 years old.",
-            json_schema={
-                "name": "person_info",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "name": {"type": "string"},
-                        "age": {"type": "integer"}
-                    },
-                    "required": ["name", "age"]
-                },
-                "strict": True
-            }
-        )
-        # result = {"name": "John", "age": 30}
-    """
-    if not isinstance(json_schema, dict) or not json_schema:
-        raise ValueError("llm_json requires a non-empty json_schema dict")
-
-    model = llm or get_llm(role)
-    is_slm = _is_slm_backend(role) if llm is None else False
-    
-    # Build call kwargs
-    call_kwargs = dict(kwargs)
-    if call_tag is not None:
-        call_kwargs["call_tag"] = call_tag
-
-    if is_slm:
-        # For SLMs: inject JSON instruction into prompt, no response_format
-        schema_hint = json.dumps(
-            json_schema.get("schema", json_schema),
-            ensure_ascii=False,
-            indent=2,
-        )
-        augmented_prompt = (
-            f"{prompt}\n\n"
-            "Respond ONLY with valid JSON matching this schema:\n"
-            f"```json\n{schema_hint}\n```"
-        )
-        msgs = _ensure_messages(augmented_prompt, system_prompt=system_prompt)
-        
-        try:
-            resp = model(messages=msgs, **call_kwargs)
-        except TypeError as e:
-            if "call_tag" in str(e):
-                call_kwargs.pop("call_tag", None)
-                resp = model(messages=msgs, **call_kwargs)
-            else:
-                raise
-    else:
-        # For OpenAI/LiteLLM: use native json_schema response_format
-        msgs = _ensure_messages(prompt, system_prompt=system_prompt)
-        call_kwargs["response_format"] = {"type": "json_schema", "json_schema": json_schema}
-        
-        try:
-            resp = model(messages=msgs, **call_kwargs)
-        except TypeError as e:
-            msg = str(e)
-            # Handle backends that don't support certain kwargs
-            if "call_tag" in msg and "unexpected keyword" in msg:
-                call_kwargs.pop("call_tag", None)
-                resp = model(messages=msgs, **call_kwargs)
-            elif "response_format" in msg and "unexpected keyword" in msg:
-                call_kwargs.pop("response_format", None)
-                resp = model(messages=msgs, **call_kwargs)
-            else:
-                raise
-
-    # Parse response
-    text = extract_text(resp)
-    try:
-        obj = try_parse_json(text)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"llm_json failed to parse JSON: {e}\nResponse: {text[:500]}")
-    
-    if not isinstance(obj, dict):
-        raise ValueError(f"llm_json expected dict, got {type(obj).__name__}")
-    
-    return obj
 
 
 def llm_text(

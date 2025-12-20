@@ -3,7 +3,7 @@
 LLM utilities for Trace.
 
 Quick Start:
-    from myopto.utils import set_role_models, get_llm, llm_json
+    from myopto.utils import set_role_models, get_llm
     
     # Configure models
     set_role_models(executor="gpt-4o-mini", optimizer="gpt-4o")
@@ -18,16 +18,16 @@ Quick Start:
     llm = get_llm("executor")
     response = llm(messages=[{"role": "user", "content": "Hello"}])
     
-    # Or use JSON output (OpenAI uses native schema, SLMs use prompt injection)
-    result = llm_json(
-        "Extract name and age from: John is 30",
-        json_schema={"name": "...", "schema": {...}}
+    # For JSON output, use response_format directly:
+    response = llm(
+        messages=[{"role": "user", "content": "Extract name and age from: John is 30"}],
+        response_format={"type": "json_schema", "json_schema": {...}}
     )
 
 Backends:
     - LiteLLM: Cloud providers (OpenAI, Anthropic, etc.) - supports json_schema
     - CustomLLM: OpenAI-compatible endpoints - supports json_schema
-    - LocalSLM: Local models via transformers/MLX - JSON via prompt injection
+    - LocalSLM: Local models via transformers/MLX
     - AutoGen: AutoGen wrapper
 """
 from myopto.utils.llm_router import (
@@ -37,8 +37,7 @@ from myopto.utils.llm_router import (
     clear_role_config,
     get_role_config,
     get_llm,
-    # LLM call helpers (moved from llm_call.py)
-    llm_json,
+    # LLM call helpers
     llm_text,
     extract_text,
     try_parse_json,
@@ -78,7 +77,6 @@ __all__ = [
     "get_role_config",
     "get_llm",
     # LLM call helpers
-    "llm_json",
     "llm_text",
     "extract_text",
     "try_parse_json",
