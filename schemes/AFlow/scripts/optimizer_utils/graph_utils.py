@@ -5,7 +5,7 @@ import time
 import traceback
 from typing import List
 
-from scripts.prompts.optimize_prompt import (
+from schemes.AFlow.scripts.prompts.optimize_prompt import (
     WORKFLOW_CUSTOM_USE,
     WORKFLOW_INPUT,
     WORKFLOW_OPTIMIZE_PROMPT,

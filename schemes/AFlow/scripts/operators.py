@@ -13,10 +13,10 @@ from typing import Dict, List, Tuple, Optional
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from scripts.async_llm import AsyncLLM
+from schemes.AFlow.scripts.async_llm import AsyncLLM
 from utils.logs import logger
-from scripts.formatter import BaseFormatter, FormatError, XmlFormatter, TextFormatter, CodeFormatter
-from scripts.operator_an import (
+from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError, XmlFormatter, TextFormatter, CodeFormatter
+from schemes.AFlow.scripts.operator_an import (
     AnswerGenerateOp,
     CodeGenerateOp,
     FormatOp,
@@ -28,7 +28,7 @@ from scripts.operator_an import (
     ScEnsembleOp,
 ) # All BaseModel
 
-from scripts.prompts.prompt import (
+from schemes.AFlow.scripts.prompts.prompt import (
     ANSWER_GENERATION_PROMPT,
     FORMAT_PROMPT,
     MD_ENSEMBLE_PROMPT,
@@ -38,7 +38,7 @@ from scripts.prompts.prompt import (
     REVISE_PROMPT,
     SC_ENSEMBLE_PROMPT,
 )
-from scripts.utils.code import (
+from schemes.AFlow.scripts.utils.code import (
     extract_test_cases_from_jsonl,
     test_case_2_test_function,
 )

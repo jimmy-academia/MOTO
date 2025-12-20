@@ -16,7 +16,7 @@ from myopto.utils.llm_router import get_llm
 from myopto.utils.usage import get_total_cost
 
 try:
-    from scripts.formatter import BaseFormatter, FormatError
+    from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError
 except ImportError:
     # Fallback if formatter not available
     BaseFormatter = None

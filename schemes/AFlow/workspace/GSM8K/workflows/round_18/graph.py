@@ -1,10 +1,10 @@
 from typing import Literal
 import workspace.GSM8K.workflows.template.operator as operator
 import workspace.GSM8K.workflows.round_18.prompt as prompt_custom
-from scripts.async_llm import create_llm_instance
+from schemes.AFlow.scripts.async_llm import create_llm_instance
 
 
-from scripts.evaluator import DatasetType
+from schemes.AFlow.scripts.evaluator import DatasetType
 
 class Workflow:
     def __init__(

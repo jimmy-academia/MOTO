@@ -9,17 +9,17 @@ import traceback
 from collections import Counter
 from typing import Dict, List, Tuple, Optional
 
-from scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeFormatter, TextFormatter
+from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeFormatter, TextFormatter
 from workspace.HumanEval.workflows.template.operator_an import *
 from workspace.HumanEval.workflows.template.op_prompt import *
-from scripts.async_llm import AsyncLLM
+from schemes.AFlow.scripts.async_llm import AsyncLLM
 from utils.logs import logger
 import asyncio
 
-from scripts.utils.code import extract_test_cases_from_jsonl, test_case_2_test_function
+from schemes.AFlow.scripts.utils.code import extract_test_cases_from_jsonl, test_case_2_test_function
 
 
-from scripts.operators import Operator
+from schemes.AFlow.scripts.operators import Operator
 
 
 

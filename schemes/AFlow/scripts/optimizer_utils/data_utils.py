@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from utils.logs import logger
-from scripts.utils.common import read_json_file, write_json_file
+from schemes.AFlow.scripts.utils.common import read_json_file, write_json_file
 
 
 class DataUtils:

@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 
 from utils.logs import logger
-from scripts.utils.common import read_json_file, write_json_file
+from schemes.AFlow.scripts.utils.common import read_json_file, write_json_file
 
 class ExperienceUtils:
     def __init__(self, root_path: str):

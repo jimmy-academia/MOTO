@@ -10,7 +10,7 @@ import re
 
 from abc import ABC, abstractmethod
 
-from scripts.utils.sanitize import sanitize
+from schemes.AFlow.scripts.utils.sanitize import sanitize
 
 class FormatError(Exception):
     """Exception raised when response format validation fails"""

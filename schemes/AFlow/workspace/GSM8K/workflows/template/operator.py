@@ -5,15 +5,15 @@ from typing import List, Optional
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeFormatter, TextFormatter
+from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeFormatter, TextFormatter
 from workspace.GSM8K.workflows.template.operator_an import *
 from workspace.GSM8K.workflows.template.op_prompt import *
-from scripts.async_llm import AsyncLLM
+from schemes.AFlow.scripts.async_llm import AsyncLLM
 from utils.logs import logger
 import asyncio
 
 
-from scripts.operators import Operator
+from schemes.AFlow.scripts.operators import Operator
 
 
 class Custom(Operator):

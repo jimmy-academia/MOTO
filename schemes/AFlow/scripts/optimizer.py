@@ -13,14 +13,14 @@ from typing import List, Literal, Dict, Any, Union
 from pydantic import BaseModel, Field
 
 try:
-    from scripts.evaluator import DatasetType
-    from scripts.optimizer_utils.convergence_utils import ConvergenceUtils
-    from scripts.optimizer_utils.data_utils import DataUtils
-    from scripts.optimizer_utils.evaluation_utils import EvaluationUtils
-    from scripts.optimizer_utils.experience_utils import ExperienceUtils
-    from scripts.optimizer_utils.graph_utils import GraphUtils
-    from scripts.async_llm import AsyncLLM, create_llm_instance
-    from scripts.formatter import XmlFormatter, FormatError
+    from schemes.AFlow.scripts.evaluator import DatasetType
+    from schemes.AFlow.scripts.optimizer_utils.convergence_utils import ConvergenceUtils
+    from schemes.AFlow.scripts.optimizer_utils.data_utils import DataUtils
+    from schemes.AFlow.scripts.optimizer_utils.evaluation_utils import EvaluationUtils
+    from schemes.AFlow.scripts.optimizer_utils.experience_utils import ExperienceUtils
+    from schemes.AFlow.scripts.optimizer_utils.graph_utils import GraphUtils
+    from schemes.AFlow.scripts.async_llm import AsyncLLM, create_llm_instance
+    from schemes.AFlow.scripts.formatter import XmlFormatter, FormatError
     from utils.logs import logger
 except ImportError:
     # Running from schemes/AFlow context

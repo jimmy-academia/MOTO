@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
-from scripts.evaluator import DatasetType
-from scripts.optimizer_utils.data_utils import DataUtils
+from schemes.AFlow.scripts.evaluator import DatasetType
+from schemes.AFlow.scripts.optimizer_utils.data_utils import DataUtils
 from utils.logs import logger
-from scripts.async_llm import LLMsConfig
+from schemes.AFlow.scripts.async_llm import LLMsConfig
 
 
 def load_best_round(dataset: str, optimized_path: str = "metagpt/ext/aflow/scripts/optimized") -> int:
