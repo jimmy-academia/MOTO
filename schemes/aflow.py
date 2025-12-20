@@ -211,7 +211,7 @@ class AFlowScheme(BaseScheme):
         self.operators = config["operators"]
         
         # Optimization parameters
-        self.optimized_path = str(self.output_subdir / "aflow_workspace")
+        self.optimized_path = "schemes/AFlow/workspace"
         self.max_rounds = getattr(args, "epochs", 20)
         self.sample = getattr(args, "batch_size", 4)
         self.validation_rounds = getattr(args, "val_interval", 1)

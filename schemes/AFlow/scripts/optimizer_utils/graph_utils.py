@@ -1,3 +1,5 @@
+import importlib.util
+import sys
 import json
 import os
 import re
@@ -24,17 +26,28 @@ class GraphUtils:
         return directory
 
     def load_graph(self, round_number: int, workflows_path: str):
-        workflows_path = workflows_path.replace("\\", ".").replace("/", ".")
-        graph_module_name = f"{workflows_path}.round_{round_number}.graph"
-
+        """Load a workflow graph module from file path."""
+        graph_file_path = os.path.join(workflows_path, f"round_{round_number}", "graph.py")
+        
+        # Add workspace parent to sys.path for internal imports (e.g., "import workspace.GSM8K...")
+        workspace_parent = os.path.dirname(os.path.dirname(workflows_path))
+        if workspace_parent not in sys.path:
+            sys.path.insert(0, workspace_parent)
+        
         try:
-            graph_module = __import__(graph_module_name, fromlist=[""])
-            graph_class = getattr(graph_module, "Workflow")
-            return graph_class
-        except ImportError as e:
+            module_name = f"workflow_round_{round_number}_{id(self)}"
+            spec = importlib.util.spec_from_file_location(module_name, graph_file_path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Could not load spec from {graph_file_path}")
+            
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            
+            return getattr(module, "Workflow")
+        except Exception as e:
             logger.error(f"Error loading graph for round {round_number}: {e}")
             raise
-
     def read_graph_files(self, round_number: int, workflows_path: str):
         prompt_file_path = os.path.join(workflows_path, f"round_{round_number}", "prompt.py")
         graph_file_path = os.path.join(workflows_path, f"round_{round_number}", "graph.py")
