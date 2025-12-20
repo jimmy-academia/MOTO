@@ -29,6 +29,9 @@ def set_arguments():
     parser.add_argument('-o', '--opt_model', type=str, default='gpt-5-nano', help='Optimizer LLM')
     parser.add_argument('-e', '--exe_model', type=str, default='gpt-5-nano', help='Executor LLM')
     parser.add_argument('--batch_mode', type=str, default='sample', help='mode for making data batches.')
+    parser.add_argument("--slm_model", type=str, default="Qwen/Qwen2-0.5B-Instruct")
+    # parser.add_argument("--use_mlx", action="store_true", help="Use MLX on Apple Silicon")
+    # parser.add_argument("--device", type=str, default="mps", choices=["mps", "cuda", "cpu"])
     # Limits
     parser.add_argument('--train_limit', type=int, default=10)
     parser.add_argument('--test_limit', type=int, default=10)

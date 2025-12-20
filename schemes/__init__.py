@@ -1,39 +1,59 @@
-# schemes/__init__.py
 """
-Scheme Registry
+Schemes Registry
 
-Available schemes:
-- ecwo: Edge-Cloud Workflow Optimization (test-time adaptation)
-- aflow: AFlow - Agentic Workflow Generation (ICLR 2025)
+Available optimization schemes for LLM workflow optimization.
 """
 
+from .base import BaseScheme
+from .beam import BeamInnerLoopEngine, BeamCandidate
 from .ecwo import ECWOScheme
-from .aflow import AFlowScheme
+from .veto import VETOScheme
+
+
+# --------------------------------------------------
+# Scheme Registry
+# --------------------------------------------------
 
 SCHEME_REGISTRY = {
-    'ecwo': ECWOScheme,
-    'aflow': AFlowScheme,
+    "ecwo": ECWOScheme,
+    "veto": VETOScheme,
 }
 
 
-def get_scheme(scheme_name: str, args):
+def get_scheme(name: str, args) -> BaseScheme:
     """
     Get a scheme instance by name.
     
     Args:
-        scheme_name: Name of the scheme (e.g., 'ecwo', 'aflow')
-        args: Arguments namespace to pass to scheme constructor
+        name: Scheme name (ecwo, veto)
+        args: Configuration arguments
         
     Returns:
-        Instantiated scheme object
+        Instantiated scheme
         
     Raises:
-        ValueError: If scheme_name is not in registry
+        ValueError: If scheme name not found
     """
-    if scheme_name not in SCHEME_REGISTRY:
-        raise ValueError(
-            f"Unknown scheme: {scheme_name}. "
-            f"Available: {list(SCHEME_REGISTRY.keys())}"
-        )
+    name_lower = name.lower()
+    if name_lower not in SCHEME_REGISTRY:
+        available = ", ".join(SCHEME_REGISTRY.keys())
+        raise ValueError(f"Unknown scheme '{name}'. Available: {available}")
     
-    return SCHEME_REGISTRY[scheme_name](args)
+    return SCHEME_REGISTRY[name_lower](args)
+
+
+def list_schemes() -> list:
+    """List available scheme names."""
+    return list(SCHEME_REGISTRY.keys())
+
+
+__all__ = [
+    "BaseScheme",
+    "BeamInnerLoopEngine",
+    "BeamCandidate",
+    "ECWOScheme",
+    "VETOScheme",
+    "SCHEME_REGISTRY",
+    "get_scheme",
+    "list_schemes",
+]
