@@ -30,7 +30,7 @@ class GraphUtils:
         graph_file_path = os.path.join(workflows_path, f"round_{round_number}", "graph.py")
         
         # Add workspace parent to sys.path for internal imports (e.g., "import workspace.GSM8K...")
-        workspace_parent = os.path.dirname(os.path.dirname(workflows_path))
+        workspace_parent = os.path.dirname(os.path.dirname(os.path.dirname(workflows_path)))
         if workspace_parent not in sys.path:
             sys.path.insert(0, workspace_parent)
         
