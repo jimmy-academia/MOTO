@@ -213,7 +213,8 @@ class AFlowScheme(BaseScheme):
         
         # Optimization parameters
         self.output_dir = getattr(args, "output_dir", "output")
-        self.optimized_path = os.path.join(self.output_dir, f"aflow_{benchmark}")
+        self.sub_dir = f"aflow_{benchmark}"
+        self.optimized_path = os.path.join(self.output_dir, self.sub_dir)
         self.template_path = "schemes/AFlow/workspace"
 
         self.max_rounds = getattr(args, "epochs", 20)
@@ -247,7 +248,7 @@ class AFlowScheme(BaseScheme):
             # Create __init__.py files for Python imports
             for path in [
                 os.path.join(self.output_dir, "__init__.py"),
-                os.path.join(self.output_dir, f"aflow_{benchmark}", "__init__.py"),
+                os.path.join(self.output_dir, self.sub_dir, "__init__.py"),
                 os.path.join(self.optimized_path, "__init__.py"),
             ]:
                 if not os.path.exists(path):
