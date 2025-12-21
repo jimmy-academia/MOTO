@@ -6,8 +6,8 @@ from typing import List, Optional
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeFormatter, TextFormatter
-from workspace.GSM8K.workflows.template.operator_an import *
-from workspace.GSM8K.workflows.template.op_prompt import *
+from .operator_an import *
+from .op_prompt import *
 from schemes.AFlow.scripts.async_llm import AsyncLLM
 from utils.logs import logger
 import asyncio

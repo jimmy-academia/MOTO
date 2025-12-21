@@ -10,8 +10,8 @@ from collections import Counter
 from typing import Dict, List, Tuple, Optional
 
 from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError, XmlFormatter, CodeFormatter, TextFormatter
-from workspace.HumanEval.workflows.template.operator_an import *
-from workspace.HumanEval.workflows.template.op_prompt import *
+from .operator_an import *
+from .op_prompt import *
 from schemes.AFlow.scripts.async_llm import AsyncLLM
 from utils.logs import logger
 import asyncio
