@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
@@ -87,13 +88,26 @@ class BaseBenchmark(ABC):
 
     async def evaluate_all_problems(self, data: List[dict], agent: Callable, max_concurrent_tasks: int = 50):
         semaphore = asyncio.Semaphore(max_concurrent_tasks)
+        
+        logger.debug(f"[Benchmark] Starting evaluation: {len(data)} problems, max_concurrent={max_concurrent_tasks}")
+        eval_start = time.time()
 
-        async def sem_evaluate(problem):
+        async def sem_evaluate(problem, idx):
             async with semaphore:
-                return await self.evaluate_problem(problem, agent)
+                start = time.time()
+                result = await self.evaluate_problem(problem, agent)
+                elapsed = time.time() - start
+                # result tuple: (question, prediction, expected, score, cost)
+                score = result[3] if len(result) > 3 else "?"
+                logger.debug(f"[Benchmark] Problem {idx+1}/{len(data)} done in {elapsed:.2f}s | score={score}")
+                return result
 
-        tasks = [sem_evaluate(problem) for problem in data]
-        return await tqdm_asyncio.gather(*tasks, desc=f"Evaluating {self.name} problems", total=len(data), ncols=88)
+        tasks = [sem_evaluate(problem, i) for i, problem in enumerate(data)]
+        results = await tqdm_asyncio.gather(*tasks, desc=f"Evaluating {self.name} problems", total=len(data), ncols=88)
+        
+        total_elapsed = time.time() - eval_start
+        logger.debug(f"[Benchmark] Evaluation complete: {len(data)} problems in {total_elapsed:.2f}s ({total_elapsed/len(data):.2f}s avg)")
+        return results
 
     async def run_evaluation(self, agent: Callable, va_list: List[int], max_concurrent_tasks: int = 50):
         data = await self.load_data(va_list)

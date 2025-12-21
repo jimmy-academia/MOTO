@@ -124,6 +124,12 @@ class SimpleLogger:
 # Create a singleton instance for easy import
 logger = SimpleLogger()
 
+def set_log_level(level: Union[str, LogLevel]) -> None:
+    """Set the global logger level. Accepts 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL' or LogLevel enum."""
+    if isinstance(level, str):
+        level = LogLevel[level.upper()]
+    logger.log_level = level.value[0]
+
 
 def test_logger():
     """Test function to verify the SimpleLogger functionality"""

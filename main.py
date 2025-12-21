@@ -44,6 +44,7 @@ def set_arguments():
     parser.add_argument('--batch_size', type=int, default=5)
     parser.add_argument('--output_dir', type=str, default='output')
     parser.add_argument('--inner_loop_iters', type=int, default=3)
+    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     args = parser.parse_args()
     if args.benchmark in meta_sets:
         args.batch_mode = "meta"
@@ -97,6 +98,11 @@ async def run_main(args):
     
 def main():
     args = set_arguments()
+
+    if args.debug:
+        from utils.logs import logger, LogLevel
+        logger.log_level = LogLevel.DEBUG.value[0]
+        logger.info("Debug mode enabled")
 
     args.train_limit = 1
     args.test_limit = 100

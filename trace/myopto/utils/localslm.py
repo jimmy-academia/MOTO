@@ -66,7 +66,7 @@ class LocalSLM:
     # Transformers Backend
     # --------------------------------------------------
 
-def _load_transformers(self):
+    def _load_transformers(self):
         """Load model using transformers."""
         try:
             import torch
@@ -115,7 +115,7 @@ def _load_transformers(self):
     # MLX Backend (Apple Silicon)
     # --------------------------------------------------
 
-def _load_mlx(self):
+    def _load_mlx(self):
         """Load model using MLX."""
         try:
             from mlx_lm import load, generate
