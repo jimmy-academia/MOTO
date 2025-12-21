@@ -242,8 +242,10 @@ class AFlowScheme(BaseScheme):
         
         source_dir = os.path.join(self.template_path, self.dataset)
         round1_target = os.path.join(self.optimized_path, "round_1")
+        graph_file = os.path.join(round1_target, "graph.py")
         
-        if not os.path.exists(round1_target):
+        # Check for actual graph.py file, not just directory existence
+        if not os.path.exists(graph_file):
             os.makedirs(round1_target, exist_ok=True)
             # Create __init__.py files for Python imports
             for path in [
@@ -433,6 +435,9 @@ class AFlowScheme(BaseScheme):
             (answer, cost_usd)
         """
         reset_usage()
+        
+        # Ensure workspace is initialized (copies template if needed)
+        self._ensure_workspace_initialized()
         
         # Determine which round to use
         round_num = self._best_round or 1

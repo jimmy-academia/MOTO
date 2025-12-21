@@ -32,7 +32,7 @@ def set_arguments():
     # parser.add_argument("--device", type=str, default="mps", choices=["mps", "cuda", "cpu"])
     # Limits
     parser.add_argument('--train_limit', type=int, default=10)
-    parser.add_argument('--test_limit', type=int, default=10)
+    parser.add_argument('--test_limit', type=int, default=5)
     
     # Control Flags
     parser.add_argument('--train', action='store_true', help='Force training')
