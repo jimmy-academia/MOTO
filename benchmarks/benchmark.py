@@ -11,7 +11,7 @@ from typing import Any, Callable, List, Tuple
 
 import aiofiles
 import pandas as pd
-from tqdm.asyncio import tqdm_asyncio
+from tqdm import tqdm
 
 from utils.logs import logger
 from utils.common import write_json_file
@@ -91,19 +91,22 @@ class BaseBenchmark(ABC):
         
         logger.debug(f"[Benchmark] Starting evaluation: {len(data)} problems, max_concurrent={max_concurrent_tasks}")
         eval_start = time.time()
+        
+        pbar = tqdm(total=len(data), desc=f"Evaluating {self.name} problems", ncols=88)
+        results = [None] * len(data)
 
         async def sem_evaluate(problem, idx):
             async with semaphore:
                 start = time.time()
                 result = await self.evaluate_problem(problem, agent)
                 elapsed = time.time() - start
-                # result tuple: (question, prediction, expected, score, cost)
                 score = result[3] if len(result) > 3 else "?"
-                logger.debug(f"[Benchmark] Problem {idx+1}/{len(data)} done in {elapsed:.2f}s | score={score}")
+                results[idx] = result
+                pbar.update(1)
                 return result
 
-        tasks = [sem_evaluate(problem, i) for i, problem in enumerate(data)]
-        results = await tqdm_asyncio.gather(*tasks, desc=f"Evaluating {self.name} problems", total=len(data), ncols=88)
+        await asyncio.gather(*[sem_evaluate(problem, i) for i, problem in enumerate(data)])
+        pbar.close()
         
         total_elapsed = time.time() - eval_start
         logger.debug(f"[Benchmark] Evaluation complete: {len(data)} problems in {total_elapsed:.2f}s ({total_elapsed/len(data):.2f}s avg)")

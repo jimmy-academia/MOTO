@@ -6,7 +6,7 @@ from benchmarks import get_benchmark
 from schemes import get_scheme
 
 from utils import get_key
-from utils.logs import logger
+from utils.logs import logger, LogLevel
 from utils.count_data import get_safe_random_indices
 from utils import good_json_dump
 from myopto.utils.llm_router import set_role_models
@@ -100,7 +100,6 @@ def main():
     args = set_arguments()
 
     if args.debug:
-        from utils.logs import logger, LogLevel
         logger.log_level = LogLevel.DEBUG.value[0]
         logger.info("Debug mode enabled")
 
