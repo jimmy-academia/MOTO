@@ -297,27 +297,64 @@ class AFlowScheme(BaseScheme):
         test_indices: Optional[Any] = None,
         test_freq: int = 1,
     ) -> None:
-        """Run AFlow optimization loop."""
-        logger.info(f"[AFlow] Starting training: {self.max_rounds} rounds")
+        """
+        Run AFlow optimization loop with periodic test evaluation.
+        
+        Unlike optimizer.optimize() which runs all rounds internally,
+        this method controls the loop to enable periodic test evaluation
+        using test_benchmark (like BaseScheme does).
+        """
+        logger.info(f"[AFlow] Starting training: {self.max_rounds} rounds, test_freq={test_freq}")
         reset_usage()
         
+        # Store benchmarks for use in optimizer
         self._train_benchmark = train_benchmark
-        self._train_indices = train_indices
+        self._train_indices = list(train_indices) if train_indices else None
         
         self.prep_train()
+        
         try:
             optimizer = self._get_optimizer()
             
-            # Run AFlow's graph optimization
-            # Note: AFlow manages its own data loading via its Evaluator
-            result = optimizer.optimize(mode="Graph")
-            # If optimize returns a coroutine (we're in async context), await it
-            if asyncio.iscoroutine(result):
-                await result
+            # Control the loop here (instead of optimizer.optimize())
+            for round_idx in range(self.max_rounds):
+                # Run ONE optimization round with retries
+                score = await self._run_one_round(optimizer)
+                
+                optimizer.round += 1
+                logger.info(f"[AFlow] Round {optimizer.round}: score={score}")
+                
+                self.save_model(epoch=optimizer.round)
+                
+                # Periodic test evaluation (like BaseScheme)
+                if (test_benchmark is not None 
+                    and test_indices is not None 
+                    and len(test_indices) > 0
+                    and optimizer.round % test_freq == 0):
+                    
+                    logger.info(f"[AFlow] Periodic test evaluation at round {optimizer.round}")
+                    self._best_round = self._find_best_round()
+                    self.prep_test()
+                    
+                    await test_benchmark.run_baseline(
+                        agent=self.inference,
+                        specific_indices=list(test_indices),
+                        max_concurrent_tasks=10,
+                    )
+                    
+                    self.prep_train()
+                
+                # Check convergence
+                converged, conv_round, final_round = optimizer.convergence_utils.check_convergence(top_k=3)
+                if converged and optimizer.check_convergence:
+                    logger.info(f"[AFlow] Converged at round {conv_round}, final round: {final_round}")
+                    optimizer.convergence_utils.print_results()
+                    break
+                
+                await asyncio.sleep(1)
             
-            # After optimization, find the best round
+            # Find best round after optimization
             self._best_round = self._find_best_round()
-            
             logger.info(f"[AFlow] Training complete. Best round: {self._best_round}")
             
         except Exception as e:
@@ -326,21 +363,22 @@ class AFlowScheme(BaseScheme):
         
         self.save_model()
     
-    async def train_one_batch(
-        self,
-        batch: List[dict],
-        calculate_score: Any
-    ) -> Dict[str, Any]:
-        """
-        AFlow doesn't use batch-based training in the traditional sense.
+    async def _run_one_round(self, optimizer) -> Optional[float]:
+        """Run one optimization round with retries."""
+        max_retries = 3
         
-        AFlow runs its own optimization loop with MCTS. This method is provided
-        for interface compatibility but delegates to AFlow's internal logic.
-        """
-        # AFlow handles its own training loop, so this is a no-op
-        # The real training happens in train() via optimizer.optimize()
-        logger.debug("[AFlow] train_one_batch called - AFlow uses its own optimization loop")
-        return {"note": "AFlow uses MCTS-based optimization, not batch training"}
+        for retry in range(max_retries):
+            try:
+                score = await optimizer._optimize_graph()
+                return score
+            except Exception as e:
+                logger.warning(f"[AFlow] Round error: {e}. Retry {retry + 1}/{max_retries}")
+                if retry == max_retries - 1:
+                    logger.error("[AFlow] Max retries reached, skipping round")
+                    return None
+                await asyncio.sleep(5 * (retry + 1))
+        
+        return None
     
     def _find_best_round(self) -> int:
         """Find the best performing round from optimization results."""

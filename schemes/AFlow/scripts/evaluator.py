@@ -5,7 +5,8 @@
 # This evaluator imports from ./benchmarks/ (main codebase), NOT ./schemes/AFlow/benchmarks/
 # ----------------------------------------------------------------------------------------------------
 
-from typing import Dict, Literal, Tuple, Any
+from typing import Dict, Literal, Tuple, Any, List
+
 
 # Import from main codebase benchmarks
 from benchmarks.benchmark import BaseBenchmark
@@ -57,10 +58,10 @@ class Evaluator:
         params: dict,
         path: str,
         is_test: bool = False,
-        benchmark: Any = None,        # NEW: accept pre-loaded benchmark
-        indices: List[int] = None,    # NEW: accept indices
+        ext_benchmark: Any = None,
+        ext_indices: List[int] = None,
     ) -> Tuple[float, float, float]:
-        
+
         if benchmark is not None:
             # Use provided benchmark
             configured_graph = await self._configure_graph(dataset, graph, params)
@@ -79,6 +80,11 @@ class Evaluator:
         Returns:
             Tuple of (score, avg_cost, total_cost)
         """
+        # Use external benchmark if provided (from main.py)
+        if ext_benchmark is not None:
+            configured_graph = await self._configure_graph(dataset, graph, params)
+            return await ext_benchmark.run_evaluation(configured_graph, ext_indices)
+        
         if dataset not in self.dataset_configs:
             raise ValueError(f"Unsupported dataset: {dataset}")
         
