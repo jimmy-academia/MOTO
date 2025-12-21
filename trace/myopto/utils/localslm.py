@@ -8,6 +8,9 @@ Wrapper for running small language models locally using transformers or MLX.
 from typing import Optional
 import os
 
+# Disable HuggingFace Hub network calls - use cached files only
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 class LocalSLM:
     """
@@ -24,7 +27,8 @@ class LocalSLM:
         use_mlx: bool = True,  # Default True for Apple Silicon
         torch_dtype: str = "float16",
         cache_dir: Optional[str] = None,
-    ):
+        local_files_only: bool = True,  # Use cached files, skip network check
+    ):        
         """
         Initialize LocalSLM.
         
@@ -40,6 +44,7 @@ class LocalSLM:
         self.use_mlx = use_mlx
         self.torch_dtype = torch_dtype
         self.cache_dir = cache_dir or os.path.expanduser("~/.cache/huggingface")
+        self.local_files_only = local_files_only
         
         self.model = None
         self.tokenizer = None
@@ -61,7 +66,7 @@ class LocalSLM:
     # Transformers Backend
     # --------------------------------------------------
 
-    def _load_transformers(self):
+def _load_transformers(self):
         """Load model using transformers."""
         try:
             import torch
@@ -72,34 +77,34 @@ class LocalSLM:
                 "pip install transformers torch"
             )
         
-        # Determine dtype
-        dtype_map = {
-            "float16": torch.float16,
-            "bfloat16": torch.bfloat16,
-            "float32": torch.float32,
-        }
+        dtype_map = {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}
         dtype = dtype_map.get(self.torch_dtype, torch.float16)
         
-        # Load tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name,
-            cache_dir=self.cache_dir,
-            trust_remote_code=True,
+        download_hint = (
+            f"Model '{self.model_name}' not found in local cache. Download it first with:\n\n"
+            f"  python -c \"from transformers import AutoModelForCausalLM, AutoTokenizer; "
+            f"AutoTokenizer.from_pretrained('{self.model_name}'); "
+            f"AutoModelForCausalLM.from_pretrained('{self.model_name}')\"\n"
         )
         
-        # Ensure pad token
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                self.model_name, cache_dir=self.cache_dir,
+                trust_remote_code=True, local_files_only=self.local_files_only,
+            )
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_name, cache_dir=self.cache_dir, torch_dtype=dtype,
+                device_map=self.device if self.device != "mps" else None,
+                trust_remote_code=True, local_files_only=self.local_files_only,
+            )
+        except OSError as e:
+            if self.local_files_only and "offline mode" in str(e).lower():
+                raise OSError(download_hint) from e
+            raise
+        
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        
-        # Load model
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self.model_name,
-            cache_dir=self.cache_dir,
-            torch_dtype=dtype,
-            device_map=self.device if self.device != "mps" else None,
-            trust_remote_code=True,
-        )
-        
+
         # Move to device if MPS
         if self.device == "mps":
             self.model = self.model.to("mps")
@@ -110,18 +115,24 @@ class LocalSLM:
     # MLX Backend (Apple Silicon)
     # --------------------------------------------------
 
-    def _load_mlx(self):
+def _load_mlx(self):
         """Load model using MLX."""
         try:
             from mlx_lm import load, generate
             self._mlx_generate = generate
         except ImportError:
-            raise ImportError(
-                "mlx-lm required for MLX backend. Install with: "
-                "pip install mlx-lm"
-            )
+            raise ImportError("mlx-lm required. Install with: pip install mlx-lm")
         
-        self.model, self.tokenizer = load(self.model_name)
+        try:
+            self.model, self.tokenizer = load(self.model_name)
+        except Exception as e:
+            err = str(e).lower()
+            if "offline" in err or "not found" in err or "does not exist" in err:
+                raise OSError(
+                    f"Model '{self.model_name}' not found in local cache. Download it first with:\n\n"
+                    f"  HF_HUB_OFFLINE=0 python -c \"from mlx_lm import load; load('{self.model_name}')\"\n"
+                ) from e
+            raise
 
     # --------------------------------------------------
     # Generation

@@ -68,7 +68,7 @@ class ChatCompletion:
 
 _role_configs: Dict[str, Dict[str, Any]] = {}
 _llm_instances: Dict[str, Any] = {}
-
+_localslm_cache: Dict[str, LocalSLM] = {}  # Cache LocalSLM by model name
 
 # ----------------------------------------------------------------------------------------------------
 # Configuration API
@@ -207,13 +207,18 @@ def _create_local_slm(config: Dict[str, Any]) -> Callable:
     if LocalSLM is None:
         raise ImportError("LocalSLM not available")
     
-    slm = LocalSLM(
-        model_name=config.get("model", "Qwen/Qwen2-0.5B-Instruct"),
-        device=config.get("device", "mps"),
-        use_mlx=config.get("use_mlx", True),
-        torch_dtype=config.get("torch_dtype", "float16"),
-    )
-    model_name = config.get("model", "local")
+    model_name = config.get("model", "Qwen/Qwen2-0.5B-Instruct")
+    
+    # Cache LocalSLM by model name to avoid loading the same model twice
+    if model_name not in _localslm_cache:
+        _localslm_cache[model_name] = LocalSLM(
+            model_name=model_name,
+            device=config.get("device", "mps"),
+            use_mlx=config.get("use_mlx", True),
+            torch_dtype=config.get("torch_dtype", "float16"),
+        )
+    
+    slm = _localslm_cache[model_name]
     default_max_tokens = config.get("max_new_tokens", config.get("max_tokens", 150))
     
     def call_slm(
