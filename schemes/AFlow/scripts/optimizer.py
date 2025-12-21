@@ -135,7 +135,7 @@ class Optimizer:
         self.validation_rounds = validation_rounds
 
         # Initialize utility classes
-        self.graph_utils = GraphUtils(self.root_path, self.template_path)
+        self.graph_utils = GraphUtils(self.root_path)
         self.data_utils = DataUtils(self.root_path)
         self.experience_utils = ExperienceUtils(self.root_path)
         self.evaluation_utils = EvaluationUtils(self.root_path)

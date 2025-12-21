@@ -9,6 +9,7 @@ llm_router for unified LLM configuration.
 
 Reference: https://arxiv.org/abs/2410.10762
 """
+import os
 import asyncio
 import importlib.util
 import sys
