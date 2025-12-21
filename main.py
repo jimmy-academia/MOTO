@@ -40,15 +40,24 @@ def set_arguments():
     
     # Training Params
     parser.add_argument('--epochs', type=int, default=20)
-    parser.add_argument('--val_interval', type=int, default=4)
-    parser.add_argument('--batch_size', type=int, default=5)
+    parser.add_argument('--val_interval', type=int, default=5)
+    parser.add_argument('--batch_size', type=int, default=4)
     parser.add_argument('--output_dir', type=str, default='output')
     parser.add_argument('--inner_loop_iters', type=int, default=3)
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser.add_argument('--quick_test', action='store_true', help='Quick test mode with minimal iterations')
     args = parser.parse_args()
     if args.benchmark in meta_sets:
         args.batch_mode = "meta"
-    
+    if args.debug:
+        logger.log_level = LogLevel.DEBUG.value[0]
+        logger.info("Debug mode enabled")
+    if args.quick_test:
+        args.train_limit = 1
+        args.test_limit = 100
+        args.batch_size = 1
+        args.epochs = 1
+        args.val_interval = 1
     return args
 
 async def run_main(args):
@@ -99,15 +108,6 @@ async def run_main(args):
 def main():
     args = set_arguments()
 
-    if args.debug:
-        logger.log_level = LogLevel.DEBUG.value[0]
-        logger.info("Debug mode enabled")
-
-    args.train_limit = 1
-    args.test_limit = 100
-    args.batch_size = 1
-    args.epochs = 1
-    args.val_interval = 1
 
     logger.info(f" --- 🤖 MetaOpt: {args.mopt_model} Optimizer: {args.opt_model} | Executor: {args.exe_model} --- ")
     logger.debug("Arguments:\n" + good_json_dump(vars(args)))
