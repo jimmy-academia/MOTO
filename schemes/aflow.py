@@ -275,7 +275,6 @@ class AFlowScheme(BaseScheme):
                 sample=self.sample,
                 check_convergence=self.check_convergence,
                 optimized_path=self.optimized_path,
-                template_path=os.path.join(self.template_path, self.dataset),
                 initial_round=self.initial_round,
                 max_rounds=self.max_rounds,
                 validation_rounds=self.validation_rounds,

@@ -69,8 +69,8 @@ class GraphUtils:
         pattern = r"class Workflow:.+"
         return re.findall(pattern, graph_load, re.DOTALL)
 
-    def load_operators_description(self, operators: List[str]) -> str:
-        path = f"{self.root_path}/workflows/template/operator.json"
+    def load_operators_description(self, operators: List[str], dataset: str) -> str:
+        path = f"schemes/AFlow/workspace/{dataset}/operator.json"
         operators_description = ""
         for id, operator in enumerate(operators):
             operator_description = self._load_operator_description(id + 1, operator, path)

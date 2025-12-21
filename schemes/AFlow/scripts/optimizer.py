@@ -80,7 +80,6 @@ class Optimizer:
         sample: int = 4,
         check_convergence: bool = False,
         optimized_path: str = None,
-        template_path: str = None,
         initial_round: int = 1,
         max_rounds: int = 20,
         validation_rounds: int = 5,
@@ -129,7 +128,6 @@ class Optimizer:
         self.operators = operators or []
 
         self.root_path = optimized_path  # Direct path to workflows output
-        self.template_path = template_path or f"schemes/AFlow/workspace/{dataset}"
         self.sample = sample
         self.top_scores = []
         self.round = initial_round
@@ -315,7 +313,7 @@ class Optimizer:
             processed_experience = self.experience_utils.load_experience()
             experience = self.experience_utils.format_experience(processed_experience, sample["round"])
 
-            operator_description = self.graph_utils.load_operators_description(self.operators)
+            operator_description = self.graph_utils.load_operators_description(self.operators, self.dataset)
             log_data = self.data_utils.load_log(sample["round"])
 
             graph_optimize_prompt = self.graph_utils.create_graph_optimize_prompt(
