@@ -92,7 +92,7 @@ class BaseBenchmark(ABC):
         logger.debug(f"[Benchmark] Starting evaluation: {len(data)} problems, max_concurrent={max_concurrent_tasks}")
         eval_start = time.time()
         
-        pbar = tqdm(total=len(data), desc=f"Evaluating {self.name} problems", ncols=88)
+        pbar = tqdm(total=len(data), desc=f"Evaluating {self.name} problems", ncols=88, colour='#aaaaaa')
         results = [None] * len(data)
 
         async def sem_evaluate(problem, idx):
