@@ -56,8 +56,16 @@ class Evaluator:
         graph: Any,
         params: dict,
         path: str,
-        is_test: bool = False
+        is_test: bool = False,
+        benchmark: Any = None,        # NEW: accept pre-loaded benchmark
+        indices: List[int] = None,    # NEW: accept indices
     ) -> Tuple[float, float, float]:
+        
+        if benchmark is not None:
+            # Use provided benchmark
+            configured_graph = await self._configure_graph(dataset, graph, params)
+            return await benchmark.run_evaluation(configured_graph, indices)
+        
         """
         Evaluate a workflow graph.
         

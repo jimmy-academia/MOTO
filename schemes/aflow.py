@@ -279,6 +279,8 @@ class AFlowScheme(BaseScheme):
                 initial_round=self.initial_round,
                 max_rounds=self.max_rounds,
                 validation_rounds=self.validation_rounds,
+                train_benchmark=self._train_benchmark,    # NEW
+                train_indices=self._train_indices,
             )
             return self._optimizer
             
@@ -299,8 +301,10 @@ class AFlowScheme(BaseScheme):
         logger.info(f"[AFlow] Starting training: {self.max_rounds} rounds")
         reset_usage()
         
-        self.prep_train()
+        self._train_benchmark = train_benchmark
+        self._train_indices = train_indices
         
+        self.prep_train()
         try:
             optimizer = self._get_optimizer()
             

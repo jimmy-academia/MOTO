@@ -83,6 +83,8 @@ class Optimizer:
         initial_round: int = 1,
         max_rounds: int = 20,
         validation_rounds: int = 5,
+        train_benchmark: Any = None,
+        train_indices: List[int] = None,
     ) -> None:
         """
         Initialize the AFlow Optimizer.
@@ -140,6 +142,8 @@ class Optimizer:
         self.experience_utils = ExperienceUtils(self.root_path)
         self.evaluation_utils = EvaluationUtils(self.root_path)
         self.convergence_utils = ConvergenceUtils(self.root_path)
+        self.train_benchmark = train_benchmark
+        self.train_indices = train_indices
     
     def _wrap_llm(self, llm: Any, role: str) -> AsyncLLM:
         """Wrap an LLM adapter or config into AsyncLLM."""
