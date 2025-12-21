@@ -295,7 +295,6 @@ class AFlowScheme(BaseScheme):
         train_indices: Any,
         test_benchmark: Optional[Any] = None,
         test_indices: Optional[Any] = None,
-        test_freq: int = 1,
     ) -> None:
         """
         Run AFlow optimization loop with periodic test evaluation.
@@ -304,7 +303,7 @@ class AFlowScheme(BaseScheme):
         this method controls the loop to enable periodic test evaluation
         using test_benchmark (like BaseScheme does).
         """
-        logger.info(f"[AFlow] Starting training: {self.max_rounds} rounds, test_freq={test_freq}")
+        logger.info(f"[AFlow] Starting training: {self.max_rounds} rounds, val_interval={self.validation_rounds}")
         reset_usage()
         
         # Store benchmarks for use in optimizer
@@ -330,7 +329,7 @@ class AFlowScheme(BaseScheme):
                 if (test_benchmark is not None 
                     and test_indices is not None 
                     and len(test_indices) > 0
-                    and optimizer.round % test_freq == 0):
+                    and optimizer.round % self.validation_rounds == 0):
                     
                     logger.info(f"[AFlow] Periodic test evaluation at round {optimizer.round}")
                     self._best_round = self._find_best_round()

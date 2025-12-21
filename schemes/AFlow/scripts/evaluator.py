@@ -61,11 +61,11 @@ class Evaluator:
         ext_benchmark: Any = None,
         ext_indices: List[int] = None,
     ) -> Tuple[float, float, float]:
-
-        if benchmark is not None:
+        
+        if ext_benchmark is not None:
             # Use provided benchmark
             configured_graph = await self._configure_graph(dataset, graph, params)
-            return await benchmark.run_evaluation(configured_graph, indices)
+            return await ext_benchmark.run_evaluation(configured_graph, ext_indices)
         
         """
         Evaluate a workflow graph.

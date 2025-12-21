@@ -340,10 +340,11 @@ class Optimizer:
                     continue
 
             # Validate and save new workflow
-            check_result, error = self.graph_utils.check_syntax(response)
-            if not check_result:
-                logger.warning(f"Syntax error in generated graph: {error}")
-                continue
+            # not implemented in source code
+            # check_result, error = self.graph_utils.check_syntax(response)
+            # if not check_result:
+            #     logger.warning(f"Syntax error in generated graph: {error}")
+            #     continue
 
             self.graph_utils.write_graph_files(directory, response, self.round + 1, self.dataset)
 
