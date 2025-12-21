@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
-# @Date    : 2025-03-31
-# @Author  : Zhaoyang
-# @Desc    : 
+# schemes/AFlow/scripts/formatter.py
+"""
+Formatters for structured LLM responses.
+Handles XML, code, and text response parsing.
+"""
 
 from typing import Dict, List, Tuple, Type, Optional, Union, Any
 
@@ -12,9 +13,11 @@ from abc import ABC, abstractmethod
 
 from schemes.AFlow.scripts.utils.sanitize import sanitize
 
+
 class FormatError(Exception):
     """Exception raised when response format validation fails"""
     pass
+
 
 class BaseFormatter(BaseModel):
     """Base class for all formatters"""
@@ -32,6 +35,27 @@ class BaseFormatter(BaseModel):
     def format_error_message(self) -> str:
         """Return an error message for invalid format"""
         return f"Response did not match the expected {self.__class__.__name__} format"
+
+    def parse(self, response: str) -> Dict[str, Any]:
+        """
+        Parse the response and return extracted fields.
+        
+        Args:
+            response: The raw LLM response
+            
+        Returns:
+            Dictionary of extracted fields
+            
+        Raises:
+            FormatError: If parsing fails
+        """
+        is_valid, result = self.validate_response(response)
+        if not is_valid or result is None:
+            raise FormatError(self.format_error_message())
+        if isinstance(result, dict):
+            return result
+        return {"response": result}
+
 
 class XmlFormatter(BaseFormatter):
     """Formatter for XML responses"""
@@ -112,6 +136,18 @@ class XmlFormatter(BaseFormatter):
         except Exception:
             return False, None
 
+    def parse(self, response: str) -> Dict[str, Any]:
+        """
+        Parse the response and return extracted fields.
+        
+        Overrides base implementation to provide better error messages.
+        """
+        is_valid, result = self.validate_response(response)
+        if not is_valid or result is None:
+            raise FormatError(f"Failed to parse XML fields from response. Expected fields: {self._get_field_names()}")
+        return result
+
+
 class CodeFormatter(BaseFormatter):
     """
     Formatter for extracting and sanitizing code from LLM responses.
@@ -130,7 +166,6 @@ class CodeFormatter(BaseFormatter):
         Returns:
             The prompt with instructions to return code in markdown format
         """
-        # Instructions to return code in appropriate format
         code_instructions = (
             "\n\n"
             "Please write your code solution in Python. "
@@ -138,7 +173,6 @@ class CodeFormatter(BaseFormatter):
             "Use proper Python syntax and formatting. "
         )
 
-        # Add function-specific instructions if function_name is provided
         if self.function_name:
             code_instructions += (
                 f"\nMake sure to include a function named '{self.function_name}' in your solution. "
@@ -158,26 +192,20 @@ class CodeFormatter(BaseFormatter):
             A tuple with (is_valid, extracted_code)
         """
         try:
-            # First try to extract code from markdown code blocks
             code = self._extract_code_from_markdown(response)
     
-            # If no code blocks found, treat the entire response as code
             if not code:
                 code = response
             
-            # Use the sanitize function to extract valid code and handle dependencies
             sanitized_code = sanitize(code=code, entrypoint=self.function_name)
             
-            # If sanitize returned empty string, the code is invalid
             if not sanitized_code.strip():
                 return False, None
             
-            # Return the sanitized code
-            result = {"response": sanitized_code}
+            result = {"response": sanitized_code, "code": sanitized_code}
             return True, result
             
         except Exception as e:
-            # Return the error information
             return False, {"error": str(e)}
     
     def _extract_code_from_markdown(self, text: str) -> str:
@@ -190,23 +218,18 @@ class CodeFormatter(BaseFormatter):
         Returns:
             The extracted code as a string, or empty string if no code blocks found
         """
-        # Look for Python code blocks (```python ... ```)
         python_pattern = r"```python\s*([\s\S]*?)\s*```"
         python_matches = re.findall(python_pattern, text)
         
         if python_matches:
-            # Join all Python code blocks
             return "\n\n".join(python_matches)
         
-        # If no Python blocks found, look for generic code blocks (``` ... ```)
         generic_pattern = r"```\s*([\s\S]*?)\s*```"
         generic_matches = re.findall(generic_pattern, text)
         
         if generic_matches:
-            # Join all generic code blocks
             return "\n\n".join(generic_matches)
         
-        # No code blocks found
         return ""
     
     def format_error_message(self) -> str:
@@ -215,6 +238,15 @@ class CodeFormatter(BaseFormatter):
         if self.function_name:
             return f"{base_message} Make sure the code includes a function named '{self.function_name}'."
         return base_message
+
+    def parse(self, response: str) -> Dict[str, Any]:
+        """Parse code from response."""
+        is_valid, result = self.validate_response(response)
+        if not is_valid or result is None:
+            raise FormatError(self.format_error_message())
+        if isinstance(result, dict):
+            return result
+        return {"response": result, "code": result}
 
     @classmethod
     def create(cls, function_name: Optional[str] = None) -> "CodeFormatter":
@@ -228,6 +260,7 @@ class CodeFormatter(BaseFormatter):
             A configured CodeFormatter instance
         """
         return cls(function_name=function_name)        
+
         
 class TextFormatter(BaseFormatter):    
     def prepare_prompt(self, prompt: str) -> str:
@@ -239,4 +272,7 @@ class TextFormatter(BaseFormatter):
         since there are no format restrictions
         """
         return True, response
-    
+
+    def parse(self, response: str) -> Dict[str, Any]:
+        """Parse text response into a dictionary."""
+        return {"response": response}
