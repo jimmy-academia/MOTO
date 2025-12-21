@@ -80,6 +80,7 @@ class Optimizer:
         sample: int = 4,
         check_convergence: bool = False,
         optimized_path: str = None,
+        template_path: str = None,
         initial_round: int = 1,
         max_rounds: int = 20,
         validation_rounds: int = 5,
@@ -127,7 +128,8 @@ class Optimizer:
         self.graph = None
         self.operators = operators or []
 
-        self.root_path = f"{optimized_path}/{self.dataset}"
+        self.root_path = optimized_path  # Direct path to workflows output
+        self.template_path = template_path or f"schemes/AFlow/workspace/{dataset}"
         self.sample = sample
         self.top_scores = []
         self.round = initial_round
@@ -135,7 +137,7 @@ class Optimizer:
         self.validation_rounds = validation_rounds
 
         # Initialize utility classes
-        self.graph_utils = GraphUtils(self.root_path)
+        self.graph_utils = GraphUtils(self.root_path, self.template_path)
         self.data_utils = DataUtils(self.root_path)
         self.experience_utils = ExperienceUtils(self.root_path)
         self.evaluation_utils = EvaluationUtils(self.root_path)
@@ -261,7 +263,7 @@ class Optimizer:
         rounds = [1]  # Can be extended
         data = []
 
-        graph_path = f"{self.root_path}/workflows_test"
+        graph_path = f"{self.root_path}_test"
         json_file_path = self.data_utils.get_results_file_path(graph_path)
         data = self.data_utils.load_results(graph_path)
 
@@ -289,7 +291,7 @@ class Optimizer:
         3. Evaluates and selects best candidates
         """
         validation_n = self.validation_rounds
-        graph_path = f"{self.root_path}/workflows"
+        graph_path = self.root_path
         data = self.data_utils.load_results(graph_path)
 
         # Initial round setup

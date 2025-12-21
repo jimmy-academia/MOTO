@@ -211,7 +211,10 @@ class AFlowScheme(BaseScheme):
         self.operators = config["operators"]
         
         # Optimization parameters
-        self.optimized_path = "schemes/AFlow/workspace"
+        output_dir = getattr(args, "output_dir", "output")
+        self.optimized_path = os.path.join(output_dir, f"aflow_{benchmark}", "workflows")
+        self.template_path = "schemes/AFlow/workspace"
+
         self.max_rounds = getattr(args, "epochs", 20)
         self.sample = getattr(args, "batch_size", 4)
         self.validation_rounds = getattr(args, "val_interval", 1)
@@ -231,6 +234,22 @@ class AFlowScheme(BaseScheme):
         logger.info(f"[AFlow] Operators: {self.operators}")
         logger.info(f"[AFlow] Max rounds: {self.max_rounds}, Sample: {self.sample}")
     
+    def _ensure_workspace_initialized(self):
+        """Copy initial workflow templates to output workspace if needed."""
+        import shutil
+        
+        source_dir = os.path.join(self.template_path, self.dataset)
+        round1_target = os.path.join(self.optimized_path, "round_1")
+        
+        if not os.path.exists(round1_target):
+            os.makedirs(round1_target, exist_ok=True)
+            # Copy workflow files to round_1
+            for f in ["__init__.py", "graph.py", "prompt.py"]:
+                src = os.path.join(source_dir, f)
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(round1_target, f))
+            logger.info(f"[AFlow] Initialized round_1 at {round1_target}")
+
     def _get_optimizer(self):
         """
         Lazy initialization of AFlow Optimizer.
@@ -240,7 +259,9 @@ class AFlowScheme(BaseScheme):
         """
         if self._optimizer is not None:
             return self._optimizer
-        
+
+        self._ensure_workspace_initialized()
+
         try:
             # Import AFlow components (assumes AFlow is in schemes/AFlow/)
             from schemes.AFlow.scripts.optimizer import Optimizer
@@ -254,6 +275,7 @@ class AFlowScheme(BaseScheme):
                 sample=self.sample,
                 check_convergence=self.check_convergence,
                 optimized_path=self.optimized_path,
+                template_path=os.path.join(self.template_path, self.dataset),
                 initial_round=self.initial_round,
                 max_rounds=self.max_rounds,
                 validation_rounds=self.validation_rounds,
@@ -338,7 +360,7 @@ class AFlowScheme(BaseScheme):
         AFlow generates Python workflow files for each round. This method
         loads and returns the Workflow class from the specified round.
         """
-        graph_path = Path(self.optimized_path) / self.dataset / "workflows" / f"round_{round_num}" / "graph.py"
+        graph_path = Path(self.optimized_path) / f"round_{round_num}" / "graph.py"
         
         if not graph_path.exists():
             raise FileNotFoundError(f"Workflow file not found: {graph_path}")
