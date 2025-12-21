@@ -107,6 +107,7 @@ class XmlFormatter(BaseFormatter):
         return ""    
     
     def prepare_prompt(self, prompt: str) -> str:
+        """Add XML format instructions to the prompt."""
         examples = []
         for field_name in self._get_field_names():
             description = self._get_field_description(field_name)
@@ -114,25 +115,34 @@ class XmlFormatter(BaseFormatter):
 
         example_str = "\n".join(examples)
         
-        instructions = prompt + f"\n# Response format (must be strictly followed) (do not include any other formats except for the given XML format):\n{example_str}"
+        instructions = (
+            prompt + 
+            "\n\n# Response format (MUST be strictly followed):\n"
+            "You MUST respond with ALL of the following XML tags. "
+            "Do not include any other formats or explanations outside the XML tags:\n\n"
+            f"{example_str}"
+        )
         return instructions
     
     def validate_response(self, response: str) -> Tuple[bool, dict]:
-        """Validate if the response contains all required fields in XML format"""
+        """Validate if the response contains XML fields."""
         try:
             pattern = r"<(\w+)>(.*?)</\1>"
             matches = re.findall(pattern, response, re.DOTALL)
             
             found_fields = {match[0]: match[1].strip() for match in matches}
             
+            # Check for required fields (no default)
             for field_name in self._get_field_names():
                 field = self.model.model_fields[field_name]
                 is_required = field.default is None and field.default_factory is None
                 
                 if is_required and (field_name not in found_fields or not found_fields[field_name]):
-                    raise FormatError(f"Field '{field_name}' is missing or empty.")
+                    raise FormatError(f"Required field '{field_name}' is missing or empty.")
 
             return True, found_fields
+        except FormatError:
+            raise
         except Exception:
             return False, None
 
@@ -140,11 +150,21 @@ class XmlFormatter(BaseFormatter):
         """
         Parse the response and return extracted fields.
         
-        Overrides base implementation to provide better error messages.
+        Ensures all expected fields are present, using empty string as default.
         """
         is_valid, result = self.validate_response(response)
+        
         if not is_valid or result is None:
-            raise FormatError(f"Failed to parse XML fields from response. Expected fields: {self._get_field_names()}")
+            raise FormatError(
+                f"Failed to parse XML fields from response. "
+                f"Expected fields: {self._get_field_names()}"
+            )
+        
+        # Ensure all expected fields exist with at least empty string default
+        for field_name in self._get_field_names():
+            if field_name not in result:
+                result[field_name] = ""
+        
         return result
 
 
@@ -159,12 +179,6 @@ class CodeFormatter(BaseFormatter):
     def prepare_prompt(self, prompt: str) -> str:
         """
         Prepare the prompt to instruct the LLM to return code in a proper format.
-        
-        Args:
-            prompt: The original prompt
-            
-        Returns:
-            The prompt with instructions to return code in markdown format
         """
         code_instructions = (
             "\n\n"
@@ -184,12 +198,6 @@ class CodeFormatter(BaseFormatter):
     def validate_response(self, response: str) -> Tuple[bool, Union[Dict[str, str], str, None]]:
         """
         Extract code from response and validate it.
-        
-        Args:
-            response: The LLM response
-            
-        Returns:
-            A tuple with (is_valid, extracted_code)
         """
         try:
             code = self._extract_code_from_markdown(response)
@@ -211,12 +219,6 @@ class CodeFormatter(BaseFormatter):
     def _extract_code_from_markdown(self, text: str) -> str:
         """
         Extract code from markdown code blocks in the response.
-        
-        Args:
-            text: The text containing possible markdown code blocks
-            
-        Returns:
-            The extracted code as a string, or empty string if no code blocks found
         """
         python_pattern = r"```python\s*([\s\S]*?)\s*```"
         python_matches = re.findall(python_pattern, text)
@@ -252,12 +254,6 @@ class CodeFormatter(BaseFormatter):
     def create(cls, function_name: Optional[str] = None) -> "CodeFormatter":
         """
         Factory method to create a CodeFormatter instance
-        
-        Args:
-            function_name: Optional name of the function to extract
-            
-        Returns:
-            A configured CodeFormatter instance
         """
         return cls(function_name=function_name)        
 
@@ -268,8 +264,7 @@ class TextFormatter(BaseFormatter):
     
     def validate_response(self, response: str) -> Tuple[bool, Union[str, None]]:
         """
-        For plain text formatter, we simply return the response as is without validation
-        since there are no format restrictions
+        For plain text formatter, we simply return the response as is.
         """
         return True, response
 

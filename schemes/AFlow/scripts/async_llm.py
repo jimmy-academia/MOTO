@@ -1,91 +1,53 @@
 # schemes/AFlow/scripts/async_llm.py
 """
-Async LLM Interface for AFlow - Adapted for llm_router integration.
-
-This module provides AFlow-compatible LLM interfaces that use the centralized
-llm_router instead of the original config file-based approach.
-
-Key changes from original:
-- LLMsConfig.default() replaced with llm_router integration
-- create_llm_instance() now wraps get_llm()
-- AsyncLLM adapted to work with LiteLLM backend
+Async LLM interface for AFlow - bridges to llm_router.
 """
 
-from typing import Dict, Optional, Any, Union
+from typing import Dict, Any, Union
+
+from pydantic import BaseModel, Field
+
 from myopto.utils.llm_router import get_llm
 from myopto.utils.usage import get_total_cost
-
-try:
-    from schemes.AFlow.scripts.formatter import BaseFormatter, FormatError
-except ImportError:
-    # Fallback if formatter not available
-    BaseFormatter = None
-    FormatError = Exception
+from utils.logs import logger
 
 
 # ----------------------------------------------------------------------------------------------------
-# LLM Configuration Classes (Compatibility Layer)
+# Configuration Models
 # ----------------------------------------------------------------------------------------------------
 
-class LLMConfig:
-    """
-    Compatibility class for AFlow's LLMConfig.
-    
-    This maintains the same interface as the original LLMConfig but
-    delegates to llm_router for actual model configuration.
-    """
-    
-    def __init__(self, config: dict = None, role: str = "executor"):
-        self.role = role
-        config = config or {}
-        self.model = config.get("model", None)
-        # These are kept for compatibility but not used
-        self.key = config.get("key", None)
-        self.base_url = config.get("base_url", None)
+class LLMConfig(BaseModel):
+    """Configuration for LLM instances."""
+    model: str = Field(default="gpt-4o-mini")
+    role: str = Field(default="executor")
+    temperature: float = Field(default=0.7)
+    max_tokens: int = Field(default=4096)
+
 
 class LLMsConfig:
-    """
-    Compatibility class for AFlow's LLMsConfig.
+    """Container for multiple LLM configurations."""
     
-    Instead of loading from YAML files, this integrates with llm_router
-    to use the centralized model configuration.
-    """
+    def __init__(self, configs: Dict[str, LLMConfig] = None):
+        self.configs = configs or {}
     
-    _instance = None
-    
-    def __init__(self):
-        pass
+    def get(self, name: str) -> LLMConfig:
+        return self.configs.get(name, LLMConfig())
     
     @classmethod
-    def default(cls) -> 'LLMsConfig':
-        """Get the default configuration instance."""
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-    
-    def get(self, model_name: str) -> Optional[LLMConfig]:
-        """
-        Get LLM config for a model name.
-        
-        In the adapted version, this returns a config that will
-        use llm_router. The model_name can be:
-        - A role name like "optimizer" or "executor"
-        - An actual model name (passed through)
-        """
-        # Map common role patterns
-        role = "executor"
-        if "optim" in model_name.lower() or "claude" in model_name.lower():
-            role = "optimizer"
-        
-        return LLMConfig({"model": model_name}, role=role)
+    def default(cls) -> "LLMsConfig":
+        return cls({
+            "gpt-4o": LLMConfig(model="gpt-4o", role="optimizer"),
+            "gpt-4o-mini": LLMConfig(model="gpt-4o-mini", role="executor"),
+            "claude-3-5-sonnet": LLMConfig(model="claude-3-5-sonnet-20241022", role="optimizer"),
+        })
 
 
 # ----------------------------------------------------------------------------------------------------
-# Token Usage Tracker
+# Token Usage Tracking
 # ----------------------------------------------------------------------------------------------------
 
 class TokenUsageTracker:
-    """Tracks token usage and costs for LLM calls."""
+    """Tracks token usage across LLM calls."""
     
     def __init__(self):
         self.total_input_tokens = 0
@@ -101,7 +63,6 @@ class TokenUsageTracker:
             "cost": 0.0,
         }
         
-        # Extract usage from response
         if hasattr(response, "usage"):
             usage = response.usage
             if hasattr(usage, "prompt_tokens"):
@@ -152,9 +113,7 @@ class AsyncLLM:
             role: Role for llm_router (executor, optimizer)
             system_msg: Optional system message for all calls
         """
-        # Handle different config types
         if isinstance(config, str):
-            # Model name string
             if "optim" in config.lower() or "claude" in config.lower():
                 role = "optimizer"
             self.model_name = config
@@ -165,7 +124,6 @@ class AsyncLLM:
             self.model_name = config.get("model")
             role = config.get("role", role)
         elif hasattr(config, "role"):
-            # LLMAdapter or similar
             role = config.role
             self.model_name = None
         else:
@@ -200,13 +158,10 @@ class AsyncLLM:
         
         messages.append({"role": "user", "content": prompt})
         
-        # Call the LLM
         response = self.llm(messages=messages)
         
-        # Track usage
         self.usage_tracker.track(response)
         
-        # Extract text
         return self._extract_text(response)
     
     async def call_with_format(
@@ -226,22 +181,39 @@ class AsyncLLM:
         Returns:
             Parsed response as dictionary
         """
+        # Prepare prompt with format instructions
+        if formatter is not None and hasattr(formatter, "prepare_prompt"):
+            formatted_prompt = formatter.prepare_prompt(prompt)
+        else:
+            formatted_prompt = prompt
+        
+        last_error = None
+        
         for attempt in range(max_retries):
             try:
-                raw_response = await self(prompt)
+                raw_response = await self(formatted_prompt)
                 
                 if formatter is not None and hasattr(formatter, "parse"):
-                    return formatter.parse(raw_response)
+                    result = formatter.parse(raw_response)
+                    # Ensure all expected fields exist (with defaults if needed)
+                    if hasattr(formatter, "_get_field_names"):
+                        for field in formatter._get_field_names():
+                            if field not in result:
+                                result[field] = ""
+                    return result
                 
-                # Fallback: return as-is
                 return {"response": raw_response}
                 
             except Exception as e:
+                last_error = e
+                logger.debug(f"[AsyncLLM] Format attempt {attempt + 1}/{max_retries} failed: {e}")
                 if attempt == max_retries - 1:
                     raise
                 continue
         
-        return {"response": await self(prompt)}
+        # Final fallback
+        raw_response = await self(formatted_prompt)
+        return {"response": raw_response}
     
     def _extract_text(self, response: Any) -> str:
         """Extract text content from response."""
@@ -251,9 +223,9 @@ class AsyncLLM:
         if hasattr(response, "choices") and response.choices:
             choice = response.choices[0]
             if hasattr(choice, "message"):
-                return choice.message.content
+                return choice.message.content or ""
             if hasattr(choice, "text"):
-                return choice.text
+                return choice.text or ""
         
         if isinstance(response, dict):
             if "choices" in response:
@@ -285,45 +257,16 @@ def create_llm_instance(
     LLM instances. It now routes through llm_router.
     
     Args:
-        llm_config: Configuration for the LLM. Can be:
-            - LLMConfig instance
-            - String model name
-            - Dictionary with config values
-            - LLMAdapter from the scheme
-        role: Role for llm_router (executor, optimizer)
+        llm_config: Configuration for the LLM.
+        role: Default role if not specified in config.
         
     Returns:
-        AsyncLLM instance ready for use
+        Configured AsyncLLM instance.
     """
-    # Handle LLMAdapter passthrough
-    if hasattr(llm_config, "role") and hasattr(llm_config, "llm"):
-        # This is our LLMAdapter - wrap it
-        return AsyncLLM(config=llm_config, role=llm_config.role)
+    if llm_config is None:
+        return AsyncLLM(role=role)
     
-    # Handle string (model name)
-    if isinstance(llm_config, str):
-        return AsyncLLM(config=llm_config, role=role)
+    if isinstance(llm_config, AsyncLLM):
+        return llm_config
     
-    # Handle LLMConfig
-    if isinstance(llm_config, LLMConfig):
-        return AsyncLLM(config=llm_config, role=llm_config.role)
-    
-    # Handle dict
-    if isinstance(llm_config, dict):
-        return AsyncLLM(config=llm_config, role=role)
-    
-    # Default
-    return AsyncLLM(role=role)
-
-
-# ----------------------------------------------------------------------------------------------------
-# Exports
-# ----------------------------------------------------------------------------------------------------
-
-__all__ = [
-    "LLMConfig",
-    "LLMsConfig",
-    "AsyncLLM",
-    "TokenUsageTracker",
-    "create_llm_instance",
-]
+    return AsyncLLM(config=llm_config, role=role)
