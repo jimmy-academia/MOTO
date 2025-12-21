@@ -125,9 +125,12 @@ class GraphUtils:
                 time.sleep(5)
         return None
 
-    def write_graph_files(self, directory: str, response: dict, round_number: int, dataset: str):
-        graph = WORKFLOW_TEMPLATE.format(graph=response["graph"], round=round_number, dataset=dataset)
-
+    def write_graph_files(self, directory: str, response: dict, round_number: int, dataset: str, output_module: str = None):
+        if output_module is None:
+            # Derive from directory path: output/aflow_gsm8k/workflows -> output.aflow_gsm8k.workflows
+            output_module = directory.rsplit("/round_", 1)[0].replace("/", ".").replace("\\", ".")
+        graph = WORKFLOW_TEMPLATE.format(graph=response["graph"], round=round_number, dataset=dataset, output_module=output_module)
+        
         with open(os.path.join(directory, "graph.py"), "w", encoding="utf-8") as file:
             file.write(graph)
 

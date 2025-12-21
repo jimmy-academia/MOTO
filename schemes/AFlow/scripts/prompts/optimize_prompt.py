@@ -49,10 +49,9 @@ Note: In custom, the input and instruction are directly concatenated(instruction
 """
 
 WORKFLOW_TEMPLATE = """from typing import Literal
-import workspace.{dataset}.workflows.template.operator as operator
-import workspace.{dataset}.workflows.round_{round}.prompt as prompt_custom
+import schemes.AFlow.workspace.{dataset}.operator as operator
+import {output_module}.round_{round}.prompt as prompt_custom
 from schemes.AFlow.scripts.async_llm import create_llm_instance
-
 
 from schemes.AFlow.scripts.evaluator import DatasetType
 

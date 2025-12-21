@@ -212,8 +212,8 @@ class AFlowScheme(BaseScheme):
         self.operators = config["operators"]
         
         # Optimization parameters
-        output_dir = getattr(args, "output_dir", "output")
-        self.optimized_path = os.path.join(output_dir, f"aflow_{benchmark}", "workflows")
+        self.output_dir = getattr(args, "output_dir", "output")
+        self.optimized_path = os.path.join(self.output_dir, f"aflow_{benchmark}")
         self.template_path = "schemes/AFlow/workspace"
 
         self.max_rounds = getattr(args, "epochs", 20)
@@ -244,6 +244,14 @@ class AFlowScheme(BaseScheme):
         
         if not os.path.exists(round1_target):
             os.makedirs(round1_target, exist_ok=True)
+            # Create __init__.py files for Python imports
+            for path in [
+                os.path.join(self.output_dir, "__init__.py"),
+                os.path.join(self.output_dir, f"aflow_{benchmark}", "__init__.py"),
+                os.path.join(self.optimized_path, "__init__.py"),
+            ]:
+                if not os.path.exists(path):
+                    Path(path).touch()
             # Copy workflow files to round_1
             for f in ["__init__.py", "graph.py", "prompt.py"]:
                 src = os.path.join(source_dir, f)
