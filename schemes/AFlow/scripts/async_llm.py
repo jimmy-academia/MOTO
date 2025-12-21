@@ -39,12 +39,9 @@ class LLMConfig:
         self.role = role
         config = config or {}
         self.model = config.get("model", None)
-        self.temperature = config.get("temperature", 1.0)
-        self.top_p = config.get("top_p", 1.0)
         # These are kept for compatibility but not used
         self.key = config.get("key", None)
         self.base_url = config.get("base_url", None)
-
 
 class LLMsConfig:
     """

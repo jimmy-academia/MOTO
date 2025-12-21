@@ -222,14 +222,13 @@ def _create_local_slm(config: Dict[str, Any]) -> Callable:
         *,
         max_tokens: int = None,
         max_new_tokens: int = None,
-        temperature: float = 0.7,
         **kwargs
     ) -> ChatCompletion:
         msgs = _normalize_input(messages, prompt)
         prompt_str = _messages_to_prompt(msgs)
         
         tokens = max_new_tokens or max_tokens or default_max_tokens
-        content = slm.generate(prompt_str, max_new_tokens=tokens, temperature=temperature)
+        content = slm.generate(prompt_str, max_new_tokens=tokens)
         
         return ChatCompletion(
             model=model_name,
@@ -257,7 +256,6 @@ def _create_openai_llm(config: Dict[str, Any]) -> Callable:
         prompt: Optional[str] = None,
         *,
         max_tokens: int = None,
-        temperature: float = 0.7,
         response_format: Dict = None,
         n: int = 1,
         **kwargs
@@ -268,7 +266,6 @@ def _create_openai_llm(config: Dict[str, Any]) -> Callable:
             "model": model,
             "messages": msgs,
             "max_tokens": max_tokens or default_max_tokens,
-            "temperature": temperature,
             "n": n,
         }
         if response_format is not None:
@@ -296,7 +293,6 @@ def _create_anthropic_llm(config: Dict[str, Any]) -> Callable:
         prompt: Optional[str] = None,
         *,
         max_tokens: int = None,
-        temperature: float = 0.7,
         **kwargs
     ) -> ChatCompletion:
         msgs = _normalize_input(messages, prompt)

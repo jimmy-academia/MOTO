@@ -1,5 +1,10 @@
 **/data
 **/logs
+**/output
+
+schemes/AFlow/workspace/**/processed_experience.json
+schemes/AFlow/workspace/**/results.json
+schemes/AFlow/workspace/**/round_*/*.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -131,9 +131,6 @@ class LocalSLM:
         self,
         prompt: str,
         max_new_tokens: int = 150,
-        temperature: float = 0.7,
-        top_p: float = 0.9,
-        do_sample: bool = True,
     ) -> str:
         """
         Generate text from prompt.
@@ -141,9 +138,6 @@ class LocalSLM:
         Args:
             prompt: Input prompt
             max_new_tokens: Maximum tokens to generate
-            temperature: Sampling temperature
-            top_p: Nucleus sampling parameter
-            do_sample: Whether to sample (vs greedy)
             
         Returns:
             Generated text
@@ -151,19 +145,14 @@ class LocalSLM:
         self._load_model()
         
         if self.use_mlx:
-            return self._generate_mlx(prompt, max_new_tokens, temperature)
+            return self._generate_mlx(prompt, max_new_tokens)
         else:
-            return self._generate_transformers(
-                prompt, max_new_tokens, temperature, top_p, do_sample
-            )
+            return self._generate_transformers(prompt, max_new_tokens)
 
     def _generate_transformers(
         self,
         prompt: str,
         max_new_tokens: int,
-        temperature: float,
-        top_p: float,
-        do_sample: bool,
     ) -> str:
         """Generate using transformers."""
         import torch
@@ -196,9 +185,6 @@ class LocalSLM:
             outputs = self.model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
-                temperature=temperature if do_sample else 1.0,
-                top_p=top_p if do_sample else 1.0,
-                do_sample=do_sample,
                 pad_token_id=self.tokenizer.pad_token_id,
             )
         
@@ -212,7 +198,6 @@ class LocalSLM:
         self,
         prompt: str,
         max_new_tokens: int,
-        temperature: float,
     ) -> str:
         """Generate using MLX."""
         # Format as chat
@@ -231,11 +216,10 @@ class LocalSLM:
             self.tokenizer,
             prompt=formatted,
             max_tokens=max_new_tokens,
-            temp=temperature,
         )
         
         return response.strip()
-
+        
     # --------------------------------------------------
     # Utilities
     # --------------------------------------------------
