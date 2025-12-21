@@ -94,5 +94,5 @@ class Evaluator:
     
     def _get_data_path(self, dataset: DatasetType, test: bool) -> str:
         """Get the data file path for a dataset."""
-        base_path = f"data/datasets/{dataset.lower()}"
+        base_path = f"data/{dataset.lower()}"
         return f"{base_path}_test.jsonl" if test else f"{base_path}_validate.jsonl"

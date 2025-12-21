@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "aiofiles>=25.1.0",
+    "mlx-lm>=0.29.1",
     "openai>=2.9.0",
     "pandas>=2.3.3",
     "regex>=2025.11.3",
